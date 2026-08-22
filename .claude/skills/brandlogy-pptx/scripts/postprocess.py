@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""apply_gradient.py — Hero Gradient 후처리.
+"""postprocess.py — Hero Gradient + 한글 폰트 후처리.
 
-pptxgenjs는 그라디언트 채우기를 지원하지 않는다. 헬퍼가 센티넬 색(0A0B0C)으로
-채워 둔 도형을 찾아 벡터 gradFill(linear-gradient(135deg, #1456f0 0%, #3b82f6 50%,
-#60a5fa 100%))로 바꾼다. 이미지로 굽지 않으므로 확대·인쇄 품질이 유지된다.
+두 가지를 고친다.
+  1) 그라디언트 — pptxgenjs는 그라디언트 채우기를 지원하지 않는다. 헬퍼가 센티넬
+     색(0A0B0C)으로 채워 둔 도형을 찾아 벡터 gradFill(135deg, #1456f0 → #3b82f6 →
+     #60a5fa)로 바꾼다. 이미지로 굽지 않으므로 확대·인쇄 품질이 유지된다.
+  2) 차트 한글 폰트 — 슬라이드 런에는 pptxgenjs가 latin/ea/cs를 모두 써 주지만
+     차트 파트(ppt/charts/*.xml)에는 <a:latin>만 쓴다. 한글 축·데이터 라벨이
+     테마 폰트로 떨어지지 않도록 같은 서체의 <a:ea>/<a:cs>를 주입한다.
 
-    python3 apply_gradient.py deck.pptx [-o out.pptx]
+    python3 postprocess.py deck.pptx [-o out.pptx]
 
 옵션 없이 쓰면 제자리에서 교체한다. 장표당 1개·덱 전체 3개 상한을 검사해서
 넘으면 실패시킨다(디자인 시스템 규칙). XML은 문자열 치환만 하므로 네임스페이스
@@ -32,11 +36,31 @@ GRADIENT = (
 )
 MAX_PER_SLIDE = 1
 MAX_PER_DECK = 3
+FONT = "맑은 고딕"
+LATIN_RE = re.compile(r'<a:latin typeface="([^"]+)"([^/>]*)/>')
 
 
 def slide_no(name: str) -> int:
     m = re.search(r"slide(\d+)\.xml$", name)
     return int(m.group(1)) if m else 0
+
+
+def inject_ea(text: str) -> tuple:
+    """차트 파트의 <a:latin> 뒤에 같은 서체의 <a:ea>/<a:cs>를 붙인다."""
+    count = 0
+
+    def repl(m):
+        nonlocal count
+        face, attrs = m.group(1), m.group(2)
+        count += 1
+        return (f'<a:latin typeface="{face}"{attrs}/>'
+                f'<a:ea typeface="{face}"{attrs}/>'
+                f'<a:cs typeface="{face}"{attrs}/>')
+
+    # 이미 ea가 붙어 있으면 건드리지 않는다
+    if "<a:ea typeface=" in text:
+        return text, 0
+    return LATIN_RE.sub(repl, text), count
 
 
 def main() -> int:
@@ -54,6 +78,7 @@ def main() -> int:
     dst = Path(args.out) if args.out else src
 
     total = 0
+    ea_total = 0
     per_slide = {}
     tmp = Path(tempfile.mkdtemp()) / "out.pptx"
     with zipfile.ZipFile(src) as zin, zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zout:
@@ -65,6 +90,11 @@ def main() -> int:
                 if n:
                     per_slide[slide_no(item.filename)] = n
                     total += n
+                    data = text.encode("utf-8")
+            elif item.filename.startswith("ppt/charts/chart") and item.filename.endswith(".xml"):
+                text, n = inject_ea(data.decode("utf-8"))
+                if n:
+                    ea_total += n
                     data = text.encode("utf-8")
             zout.writestr(item, data)
 
@@ -84,10 +114,13 @@ def main() -> int:
 
     shutil.move(str(tmp), str(dst))
     if total == 0:
-        print(f"센티넬({SENTINEL}) 도형 없음 — 교체할 그라디언트가 없다: {dst}")
+        print(f"센티넬({SENTINEL}) 도형 없음 — 교체할 그라디언트가 없다")
     else:
         detail = ", ".join(f"slide{k}:{v}" for k, v in sorted(per_slide.items()))
-        print(f"Hero Gradient {total}개 적용 ({detail}) → {dst}")
+        print(f"Hero Gradient {total}개 적용 ({detail})")
+    if ea_total:
+        print(f"차트 한글 폰트(<a:ea>/<a:cs>) {ea_total}곳 주입")
+    print(f"→ {dst}")
     return 0
 
 

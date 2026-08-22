@@ -1,12 +1,12 @@
 /**
- * brandlogy.js — Brandlogy 16:9 덱 헬퍼 (pptxgenjs 위에서 동작)
+ * brandlogy.js — A4 가로 덱 헬퍼 (pptxgenjs 위에서 동작)
  *
  * 목적: 디자인 시스템의 "고정 좌표 5존 · 토큰 · 가드레일"을 코드로 고정해서
  *       장표마다 좌표를 다시 타이핑하다 생기는 표류를 없앤다.
  *
  * 사용법:
  *   const B = require('./brandlogy.js');
- *   const deck = B.createDeck({ logo: 'brandlogy.png', title: '2026 사업계획' });
+ *   const deck = B.createDeck({ logo: 'ksa_logo.png', title: '2026 사업계획' });
  *   const s = deck.slide({ chapter: '01 시장 진단', source: '출처: 통계청(2025)' });
  *   B.headline(s, '국내 수요는 3년째 두 자릿수로 커지고 있다');
  *   B.subtitle(s, '2023–2025 연평균 성장률 14.2%, 상위 3개 채널이 성장의 71%를 견인');
@@ -14,7 +14,7 @@
  *   await deck.save('out.pptx');
  *
  * 이후 반드시:
- *   python3 scripts/apply_gradient.py out.pptx     # Hero Gradient 센티넬 → 벡터 gradFill
+ *   python3 scripts/postprocess.py out.pptx     # Hero Gradient 센티넬 → 벡터 gradFill
  *   python3 scripts/check_layout.py out.pptx       # 존 고정·폰트·경계 자동 점검
  *   python3 /mnt/skills/public/pptx/scripts/office/validate.py out.pptx
  */
@@ -24,9 +24,10 @@
 const PptxGenJS = require('pptxgenjs');
 
 // ─────────────────────────────────────────────────────────── 단위
-const SLIDE_W = 13.333;
+// A4 가로 = 9906000 × 6858000 EMU = 10.8333" × 7.5" (27.52 × 19.05cm)
+const SLIDE_W = 10.8333;
 const SLIDE_H = 7.5;
-const px = (n) => n / 144;          // CSS px → inch (1920×1080 기준 = 144dpi)
+const px = (n) => n / 144;          // CSS px → inch (1560×1080 기준 = 144dpi)
 const pxPt = (n) => n / 2;          // CSS px → pt
 const inPt = (n) => n * 72;         // inch → pt
 
@@ -39,22 +40,24 @@ const C = {
   sub: '45515E', muted: '8E8E93', helper: '5F5F5F',
   white: 'FFFFFF', surface: 'F0F0F0', divider: 'F2F3F5', border: 'E5E7EB',
   successBg: 'E8FFEA', successFg: '16A34A',
-  // Hero Gradient 센티넬 — apply_gradient.py가 이 채움색을 찾아 gradFill로 교체한다
+  // Hero Gradient 센티넬 — postprocess.py가 이 채움색을 찾아 gradFill로 교체한다
   GRADIENT: '0A0B0C',
 };
 
-// ─────────────────────────────────────────────────────────── 폰트 (Pretendard 전용)
-// pptxgenjs는 굵기를 bold(true/false)로만 표현하므로 500/600은 웨이트명 패밀리로 지정한다.
-// 대상 PC에 웨이트 분리 패밀리가 없으면 setWeightMode('basic')으로 전환한다.
+// ─────────────────────────────────────────────────────────── 폰트 (맑은 고딕 전용)
+// 맑은 고딕은 Semilight / Regular / Bold 세 단계뿐이다. 사양의 6단 웨이트를
+// 아래처럼 접어서 쓰고, 500 vs 600처럼 접혀서 사라진 대비는 크기·색으로 만든다.
 let WEIGHT_MODE = 'full';
 const FACE = {
-  full:  { 300:['Pretendard Light',false], 400:['Pretendard',false], 500:['Pretendard Medium',false],
-           600:['Pretendard SemiBold',false], 700:['Pretendard',true], 800:['Pretendard ExtraBold',false] },
-  basic: { 300:['Pretendard',false], 400:['Pretendard',false], 500:['Pretendard',false],
-           600:['Pretendard',true], 700:['Pretendard',true], 800:['Pretendard',true] },
+  full: { 300:['맑은 고딕 Semilight',false], 400:['맑은 고딕',false], 500:['맑은 고딕',false],
+          600:['맑은 고딕',true], 700:['맑은 고딕',true], 800:['맑은 고딕',true] },
+  // Semilight가 없는 PC(구형 Windows·macOS)용 — 300도 Regular로 접는다
+  flat: { 300:['맑은 고딕',false], 400:['맑은 고딕',false], 500:['맑은 고딕',false],
+          600:['맑은 고딕',true], 700:['맑은 고딕',true], 800:['맑은 고딕',true] },
 };
+const FONT = '맑은 고딕';
 function setWeightMode(mode) {
-  if (!FACE[mode]) throw new Error(`weight mode는 'full' 또는 'basic'`);
+  if (!FACE[mode]) throw new Error(`weight mode는 'full' 또는 'flat'`);
   WEIGHT_MODE = mode;
 }
 /** 웨이트 → { fontFace, bold } */
@@ -66,18 +69,19 @@ function w(weight) {
 
 // ─────────────────────────────────────────────────────────── 존 (전 장표 고정)
 const Z = {
-  header:   { x: 0.5, y: 0.40, w: 12.333, h: 0.30 },
-  chapter:  { x: 0.5, y: 0.40, w: 8.0,    h: 0.30 },
-  logo:     { x: 11.613, y: 0.44, w: 1.22, h: 0.24 },
-  headline: { x: 0.5, y: 1.00, w: 12.333, h: 0.75 },
-  subtitle: { x: 0.5, y: 1.63, w: 12.333, h: 0.40 },
-  body:     { x: 0.5, y: 2.39, w: 12.333, h: 4.46 },
-  footer:   { x: 0.5, y: 7.05, w: 12.333, h: 0.25 },
+  header:   { x: 0.5, y: 0.40, w: 9.8333, h: 0.30 },
+  chapter:  { x: 0.5, y: 0.40, w: 6.0,    h: 0.30 },
+  logo:     { x: 9.1133, y: 0.44, w: 1.22, h: 0.24 },  // 폭은 로고 원본 비율로 자동 보정된다
+  headline: { x: 0.5, y: 1.00, w: 9.8333, h: 0.75 },
+  subtitle: { x: 0.5, y: 1.63, w: 9.8333, h: 0.40 },
+  body:     { x: 0.5, y: 2.39, w: 9.8333, h: 4.46 },
+  footer:   { x: 0.5, y: 7.05, w: 9.8333, h: 0.25 },
 };
+const LOGO_H = 0.24, LOGO_MAX_W = 1.9;
 const BODY_TOP = 2.39, BODY_BOTTOM = 6.85, EPS = 0.004;
 
 // 12열 그리드
-const GRID = { cols: 12, gutter: 0.2, col: (12.333 - 11 * 0.2) / 12 };
+const GRID = { cols: 12, gutter: 0.2, col: (9.8333 - 11 * 0.2) / 12 };
 const colX = (i) => +(Z.body.x + i * (GRID.col + GRID.gutter)).toFixed(4);
 const colW = (n) => +(n * GRID.col + (n - 1) * GRID.gutter).toFixed(4);
 /** 균등 n분할 → [{x,w}, ...] (n은 12의 약수: 2,3,4,6) */
@@ -109,6 +113,33 @@ const SHADOW = {
   elevated:   () => ({ type: 'outer', color: '242424', opacity: 0.08, blur: 8,    offset: 6,   angle: 90 }),
 };
 
+// ─────────────────────────────────────────────────────────── 로고
+/** PNG 헤더에서 픽셀 크기를 읽는다(의존성 없음). 실패하면 null */
+function pngSize(file) {
+  try {
+    const fs = require('fs');
+    const fd = fs.openSync(file, 'r');
+    const buf = Buffer.alloc(24);
+    fs.readSync(fd, buf, 0, 24, 0);
+    fs.closeSync(fd);
+    if (buf.slice(1, 4).toString() !== 'PNG') return null;
+    return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+  } catch (e) { return null; }
+}
+
+/**
+ * 로고 배치 박스. 높이 0.24"에 맞추고 폭은 **원본 비율로 자동 계산**한다
+ * (임의 폭을 강제하면 로고가 늘어난다 — 로고 무결성 규칙 위반).
+ * 아주 가로로 긴 로고는 폭 상한(1.9")에 맞춰 높이를 줄인다. 오른쪽 끝은 항상 0.5" 여백.
+ */
+function logoBox(file) {
+  const sz = file ? pngSize(file) : null;
+  let h = LOGO_H;
+  let wd = sz ? +(h * (sz.w / sz.h)).toFixed(4) : Z.logo.w;
+  if (wd > LOGO_MAX_W) { h = +(LOGO_MAX_W * (sz.h / sz.w)).toFixed(4); wd = LOGO_MAX_W; }
+  return { x: +(SLIDE_W - 0.5 - wd).toFixed(4), y: +(Z.logo.y + (LOGO_H - h) / 2).toFixed(4), w: wd, h };
+}
+
 // ─────────────────────────────────────────────────────────── 가드레일
 function assertBody(y, h, what = '본문 요소') {
   if (y < BODY_TOP - EPS) throw new Error(`${what}가 본문 상단(2.39")을 침범: y=${y}`);
@@ -136,8 +167,8 @@ function useBrandGlow(slide) {
 // ─────────────────────────────────────────────────────────── 덱
 function createDeck(opts = {}) {
   const pres = new PptxGenJS();
-  pres.defineLayout({ name: 'BRANDLOGY_16x9', width: SLIDE_W, height: SLIDE_H });
-  pres.layout = 'BRANDLOGY_16x9';
+  pres.defineLayout({ name: 'A4_LANDSCAPE', width: SLIDE_W, height: SLIDE_H });
+  pres.layout = 'A4_LANDSCAPE';
   if (opts.title) pres.title = opts.title;
   if (opts.author) pres.author = opts.author;
   if (opts.subject) pres.subject = opts.subject;
@@ -145,7 +176,7 @@ function createDeck(opts = {}) {
 
   const deck = {
     pres, _grad: 0, _page: 0,
-    logo: opts.logo || null,           // 사용자 제공 Brandlogy PNG 경로 (누끼, 원본 그대로)
+    logo: opts.logo || null,           // 한국표준협회(KSA) 로고 PNG 경로 (누끼, 원본 그대로)
     logoWhite: opts.logoWhite || null, // 어두운 배경용 흰 변형(균일 반전본)
 
     /** 표준 5존 프레임이 적용된 본문 장표 */
@@ -172,10 +203,10 @@ function createDeck(opts = {}) {
     async save(path) {
       await pres.writeFile({ fileName: path });
       if (deck._grad > 0) {
-        console.log(`[brandlogy] Hero Gradient ${deck._grad}개 — 반드시 실행: python3 scripts/apply_gradient.py ${path}`);
+        console.log(`[deck] Hero Gradient ${deck._grad}개 — 반드시 실행: python3 scripts/postprocess.py ${path}`);
       }
       if (!deck.logo) {
-        console.log('[brandlogy] 경고: 로고 파일이 지정되지 않아 장표에 로고가 없다. 사용자에게 Brandlogy 누끼 PNG를 요청할 것.');
+        console.log('[deck] 경고: 로고 파일이 지정되지 않아 장표에 로고가 없다. 한국표준협회(KSA) 누끼 PNG를 지정할 것.');
       }
       return path;
     },
@@ -194,7 +225,8 @@ function frame(slide, o = {}) {
     });
   }
   if (deck.logo) {
-    slide.addImage({ path: deck.logo, ...Z.logo });  // 원본 그대로 — 배경/테두리/그림자/보정 금지
+    // 원본 그대로 — 배경/테두리/그림자/보정 금지. 폭은 원본 비율로 자동 계산한다
+    slide.addImage({ path: deck.logo, ...logoBox(deck.logo) });
   }
   slide.addText(String(o.page == null ? slide._page : o.page), {
     ...Z.footer, w: 4.0, ...w(500), fontSize: 10, color: C.muted,
@@ -210,11 +242,11 @@ function frame(slide, o = {}) {
 }
 
 function headline(slide, text, o = {}) {
-  const size = o.fontSize || 36;                     // 32–40pt
+  const size = o.fontSize || 32;   // A4 가로에서는 32pt 한 줄(한글 22자 내외)이 기본
   slide.addText(noEmoji(text), {
     ...Z.headline, ...w(700), fontSize: size, color: o.color || C.ink,
     valign: 'top', align: 'left', margin: 0,
-    lineSpacingMultiple: 1.2, charSpacing: o.charSpacing == null ? -0.75 : o.charSpacing, // ≈ -0.02em @36pt
+    lineSpacingMultiple: 1.2, charSpacing: o.charSpacing == null ? -0.65 : o.charSpacing, // ≈ -0.02em @32pt
   });
   return slide;
 }
@@ -261,7 +293,7 @@ function kpiCard(slide, o) {
   card(slide, { ...o, kind: gradient ? 'gradient' : (o.featured ? 'featured' : 'standard'), what: 'KPI 카드' });
   const numColor = gradient ? C.white : (o.color || C.brandBlue);
   const labColor = gradient ? 'FFFFFF' : C.sub;
-  const numSize = o.valueSize || 40;
+  const numSize = o.valueSize || 36;   // A4 가로 폭(9.83") 기준
   slide.addText(noEmoji(o.value), {
     x: o.x + pad, y: o.y + pad, w: o.w - 2 * pad, h: o.h - 2 * pad - 0.26,
     ...w(700), fontSize: numSize, color: numColor,
@@ -310,9 +342,9 @@ function chartOpts(over = {}) {
   const base = {
     chartColors: [C.brandBlue, C.blue400, C.blue200, C.brandDeep],
     showLegend: false,
-    catAxisLabelFontFace: 'Pretendard', catAxisLabelFontSize: 10, catAxisLabelColor: C.sub,
-    valAxisLabelFontFace: 'Pretendard', valAxisLabelFontSize: 10, valAxisLabelColor: C.sub,
-    dataLabelFontFace: 'Pretendard', dataLabelFontSize: 11, dataLabelFontBold: true, dataLabelColor: C.ink,
+    catAxisLabelFontFace: FONT, catAxisLabelFontSize: 10, catAxisLabelColor: C.sub,
+    valAxisLabelFontFace: FONT, valAxisLabelFontSize: 10, valAxisLabelColor: C.sub,
+    dataLabelFontFace: FONT, dataLabelFontSize: 11, dataLabelFontBold: true, dataLabelColor: C.ink,
     showValue: true, dataLabelPosition: 'outEnd',
     valGridLine: { color: C.border, size: 1 },
     catGridLine: { style: 'none' },
@@ -386,13 +418,13 @@ function caption(slide, text, o) {
 /** 표지: 5존 프레임 + 본문 자리에 Hero Gradient 카드 하나 */
 function cover(deck, o) {
   const s = deck.slide({ chapter: o.chapter || '', page: o.page, source: o.source });
-  headline(s, o.title, { fontSize: 40 });
+  headline(s, o.title, { fontSize: o.titleSize || 32 });
   if (o.subtitle) subtitle(s, o.subtitle);
   const box = { x: Z.body.x, y: Z.body.y, w: Z.body.w, h: Z.body.h, ...(o.box || {}) };
   card(s, { ...box, kind: 'gradient', radius: R.hero, what: '표지 히어로 카드' });
   const pad = px(48);
   slide_text(s, o.kpi, { x: box.x + pad, y: box.y + box.h / 2 - 0.85, w: box.w - 2 * pad, h: 0.95 },
-    { ...w(700), fontSize: 48, color: C.white, lineSpacingMultiple: 1.1 });
+    { ...w(700), fontSize: 44, color: C.white, lineSpacingMultiple: 1.1 });
   slide_text(s, o.kpiLabel, { x: box.x + pad, y: box.y + box.h / 2 + 0.12, w: box.w - 2 * pad, h: 0.3 },
     { ...w(500), fontSize: 12, color: C.white, transparency: 15 });
   return s;
@@ -409,11 +441,11 @@ function divider(deck, o) {
     s.addText(noEmoji(o.number), { ...Z.chapter, ...w(600), fontSize: 14, color: C.white, transparency: 40,
       valign: 'middle', align: 'left', margin: 0 });
   }
-  if (deck.logoWhite) s.addImage({ path: deck.logoWhite, ...Z.logo });
-  s.addText(noEmoji(o.title), { x: 0.5, y: 3.0, w: 12.333, h: 1.1, ...w(700), fontSize: 56, color: C.white,
+  if (deck.logoWhite) s.addImage({ path: deck.logoWhite, ...logoBox(deck.logoWhite) });
+  s.addText(noEmoji(o.title), { x: 0.5, y: 3.0, w: 9.8333, h: 1.1, ...w(700), fontSize: 48, color: C.white,
     valign: 'bottom', align: 'left', margin: 0, lineSpacingMultiple: 1.15, charSpacing: -1.2 });
   if (o.lead) {
-    s.addText(noEmoji(o.lead), { x: 0.5, y: 4.2, w: 10.0, h: 0.5, ...w(500), fontSize: 22, color: C.white,
+    s.addText(noEmoji(o.lead), { x: 0.5, y: 4.2, w: 8.5, h: 0.5, ...w(500), fontSize: 20, color: C.white,
       transparency: 30, valign: 'top', align: 'left', margin: 0, lineSpacingMultiple: 1.45 });
   }
   s.addText(String(o.page == null ? s._page : o.page), { ...Z.footer, w: 4.0, ...w(500), fontSize: 10,
@@ -429,7 +461,7 @@ function slide_text(slide, text, box, style) {
 module.exports = {
   PptxGenJS, SLIDE_W, SLIDE_H, px, pxPt, inPt,
   C, Z, GRID, BAND, R, SHADOW, colX, colW, split,
-  w, setWeightMode, assertBody, noEmoji,
+  w, FONT, setWeightMode, assertBody, noEmoji, pngSize, logoBox, LOGO_H,
   createDeck, frame, headline, subtitle,
   card, kpiCard, kpiRow, dataCard, chartOpts, h2, bullets, soWhat, pill, caption,
   cover, divider,

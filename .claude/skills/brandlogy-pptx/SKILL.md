@@ -1,11 +1,13 @@
 ---
 name: brandlogy-pptx
-description: Brandlogy 브랜드 PPT(16:9 화이트 캔버스, Pretendard 전용, 브랜드 블루 #1456f0) 디자인 시스템으로 슬라이드를 만드는 스킬. "Brandlogy 덱 만들어줘", "브랜들로지 스타일 PPT", "미니맥스 느낌 16:9 슬라이드", "화이트 배경 브랜드 덱", "Brandlogy 템플릿으로 장표 만들어줘", "히어로 그라디언트 커버" 같은 요청에는 반드시 이 스킬을 쓴다. 명시적으로 "Brandlogy"라 하지 않아도 16:9 화이트 캔버스·Pretendard·KPI 카드/차트 중심의 프로덕트 마케팅형 덱이면 이 스킬을 우선 검토한다. 5존 고정 좌표(헤더 0.4"/헤드라인 1.0"/부제 1.63"/본문 2.39–6.85"/푸터 7.05")·Hero Gradient 상한·로고 무결성·시각화 우선 규칙을 헬퍼(assets/brandlogy.js)와 자동 점검기(scripts/check_layout.py)로 강제한다. KSA 발표 덱은 present-pptx, 컨설팅 보고서 PPT는 consulting-pptx 담당이며 이 스킬은 Brandlogy 브랜드 덱 전용이다.
+description: 한국표준협회(KSA) 브랜드 PPT(A4 가로, 화이트 캔버스, 맑은 고딕 전용, 브랜드 블루 #1456f0) 디자인 시스템으로 슬라이드를 만드는 스킬. "브랜드 덱 만들어줘", "화이트 배경 A4 가로 슬라이드", "KPI 카드·차트 중심 장표", "히어로 그라디언트 커버", "이 디자인 시스템으로 장표 만들어줘" 같은 요청에는 반드시 이 스킬을 쓴다. 명시적으로 스킬명을 말하지 않아도 A4 가로 화이트 캔버스·맑은 고딕·KPI 카드/차트 중심의 프로덕트 마케팅형 덱이면 이 스킬을 우선 검토한다. 5존 고정 좌표(헤더 0.4"/헤드라인 1.0"/부제 1.63"/본문 2.39–6.85"/푸터 7.05")·Hero Gradient 상한·로고 무결성·시각화 우선 규칙을 헬퍼(assets/brandlogy.js)와 자동 점검기(scripts/check_layout.py)로 강제한다. KSA 하우스 스타일 발표 덱(HY헤드라인M·7존)은 present-pptx, 컨설팅 보고서 PPT는 consulting-pptx 담당이며, 이 스킬은 화이트 캔버스 브랜드 덱 전용이다.
 ---
 
-# Brandlogy PPT — 16:9 디자인 시스템
+# 브랜드 PPT — A4 가로 디자인 시스템
 
 Apple급 프로덕트 마케팅의 명료함 + 둥글고 경쾌한 갤러리 느낌. 정체성은 한 줄로: **순백 캔버스 위에 5개 존이 전 장표에서 1/1000인치도 움직이지 않고, 색은 차트·KPI 카드·단 하나의 히어로 그라디언트로만 들어오며, 데이터는 문장이 아니라 그림으로 말한다.**
+
+판형은 **A4 가로(10.8333" × 7.5", 9906000 × 6858000 EMU)**, 서체는 **맑은 고딕**, 로고는 **한국표준협회(KSA)** 다.
 
 값(색·수치·금지사항)의 최종 권한은 **`references/design-system.md`(규범 사양)** 에 있다. 인치 좌표는 **`references/layout-geometry.md`**, 파일 조작 메커니즘(unzip·add_slide.py·validate.py·렌더)은 **pptx 스킬**을 따른다.
 
@@ -13,10 +15,10 @@ Apple급 프로덕트 마케팅의 명료함 + 둥글고 경쾌한 갤러리 느
 
 | 확인 | 조치 |
 |---|---|
-| **로고 파일** | Brandlogy 누끼(투명 PNG)가 대화에 없으면 **작업 전에 요청한다.** 로고를 직접 만들거나 다른 로고로 대체하지 않는다. 어두운 배경 장표가 있으면 흰 반전본도 함께 받는다 |
-| **템플릿** | `_Claude_Brandlogy_Template_2026.pptx`가 주어졌으면 §6 템플릿 경로로 간다. 없으면 §2 생성 경로 |
-| **비율** | 16:9(13.333"×7.5")만 산출한다. 4:3·A4·9:16 요청은 거절하고 16:9로 제안 |
-| **폰트** | Pretendard 외 어떤 패밀리도 쓰지 않는다. 대체 폰트 제안도 하지 않는다 |
+| **로고 파일** | `assets/ksa_logo.png`(한국표준협회 누끼 PNG)가 있으면 그것을 쓴다. 없으면 **작업 전에 사용자에게 요청한다** — 로고를 직접 그리거나 다른 로고로 대체하지 않는다. 어두운 배경 장표가 있으면 흰 반전본(`ksa_logo_white.png`)도 함께 받는다 |
+| **템플릿** | 표준 템플릿 .pptx가 주어졌으면 §6 템플릿 경로로 간다. 없으면 §2 생성 경로 |
+| **판형** | A4 가로(10.8333"×7.5")만 산출한다. 16:9·4:3·A4 세로 요청은 거절하고 A4 가로로 제안 |
+| **폰트** | 맑은 고딕 외 어떤 패밀리도 쓰지 않는다. 대체 폰트 제안도 하지 않는다 |
 | **데이터** | 근거 없는 수치·출처를 지어내지 않는다. 모든 데이터 요소에는 출처 줄이 붙는다 |
 
 ## 1. 3대 강제 규칙
@@ -32,10 +34,11 @@ Apple급 프로덕트 마케팅의 명료함 + 둥글고 경쾌한 갤러리 느
 좌표를 손으로 타이핑하지 말고 **헬퍼를 쓴다.** `assets/brandlogy.js`가 5존·12열 그리드·패턴 밴드·그림자·차트 기본값을 상수로 갖고 있고, 경계를 넘거나 그라디언트를 초과하면 **예외를 던져 생성을 막는다.**
 
 ```bash
-mkdir build && cp .claude/skills/brandlogy-pptx/assets/{brandlogy.js,example_deck.js} build/
-cd build && node example_deck.js ../brandlogy_logo.png deck.pptx   # example_deck.js를 복사해 내용만 교체
-python3 ../.claude/skills/brandlogy-pptx/scripts/apply_gradient.py deck.pptx   # 그라디언트 센티넬 → 벡터 gradFill
-python3 ../.claude/skills/brandlogy-pptx/scripts/check_layout.py deck.pptx --special 1,5
+SK=.claude/skills/brandlogy-pptx
+mkdir build && cp $SK/assets/{brandlogy.js,example_deck.js} build/
+cd build && node example_deck.js ../$SK/assets/ksa_logo.png deck.pptx   # example_deck.js를 복사해 내용만 교체
+python3 ../$SK/scripts/postprocess.py deck.pptx        # 그라디언트 센티넬 → 벡터 gradFill + 차트 한글 폰트
+python3 ../$SK/scripts/check_layout.py deck.pptx --special 1,5
 python3 /mnt/skills/public/pptx/scripts/office/validate.py deck.pptx
 ```
 
@@ -47,17 +50,17 @@ python3 /mnt/skills/public/pptx/scripts/office/validate.py deck.pptx
 
 | 호출 | 용도 |
 |---|---|
-| `createDeck({logo, logoWhite, title, author})` | 13.333×7.5 레이아웃 + 그라디언트 카운터 |
+| `createDeck({logo, logoWhite, title, author})` | A4 가로(10.8333×7.5) 레이아웃 + 그라디언트 카운터 |
 | `deck.slide({chapter, source, page})` | 5존 프레임(헤더·로고·페이지·출처)이 박힌 본문 장표 |
 | `headline(s, ...)` / `subtitle(s, ...)` | 700 36pt / 500 16pt, 고정 좌표 |
 | `kpiRow(s, items, {y})` / `kpiCard` | 2–4장 KPI 스트립. `{gradient:true}`로 장표당 1장만 히어로 |
 | `dataCard(s, {...})` → `.area` | 차트 컨테이너(제목·출처 포함). 반환된 `area`에 `addChart` |
-| `chartOpts({...})` | Pretendard 축·데이터라벨·브랜드 블루 시리즈 기본값 |
+| `chartOpts({...})` | 맑은 고딕 축·데이터라벨·브랜드 블루 시리즈 기본값 |
 | `split(n)` / `colX(i)` / `colW(n)` | 12열 그리드 (2·3·4·6 균등 분할) |
 | `h2` `bullets` `soWhat` `pill` `caption` `card` | 본문 부품 |
 | `cover(deck, {...})` / `divider(deck, {...})` | 표지 · 섹션 디바이더(어두운 배경 또는 그라디언트) |
 | `BAND.A~F` | 패턴별 밴드 y·h (합계 정확히 4.46") |
-| `setWeightMode('basic')` | 대상 PC에 `Pretendard Medium/SemiBold` 패밀리가 없을 때. 기본 `full`은 500/600을 웨이트명 패밀리로 지정한다 |
+| `setWeightMode('flat')` | 대상 PC에 `맑은 고딕 Semilight`가 없을 때(300도 Regular로 접는다). 기본은 `full` |
 
 ## 3. 본문 패턴 선택 맵
 
@@ -75,14 +78,15 @@ python3 /mnt/skills/public/pptx/scripts/office/validate.py deck.pptx
 ## 4. 토큰 빠른 참조
 
 - 배경 #ffffff (디바이더·클로징만 #181e25 또는 Hero Gradient)
-- 헤드라인 700 32–40pt #222222 / 부제 500 16pt #45515e / 본문 400 12–14pt #222222 / 출처 400 9–10pt #8e8e93
+- 헤드라인 **Bold 32pt** #222222 (한 줄·한글 22자 내외) / 부제 Regular 16pt #45515e / 본문 Regular 12–13pt #222222 / 출처 Regular 9–10pt #8e8e93
+- 맑은 고딕은 굵기가 Regular·Bold 둘뿐이다 — 사양의 600/700은 둘 다 Bold이므로 **크기와 색**으로 구분한다
 - 브랜드 블루 #1456f0 · #3b82f6 · #60a5fa, 딥 #17437d, 라이트 #bfdbfe / 핑크 #ea5ec1은 장식 액센트 전용(본문 텍스트·버튼 금지)
 - 경계선 #e5e7eb · 구분면 #f2f3f5 · 보조면 #f0f0f0
 - 카드 radius 13–24px, 버튼 8px, 필 9999px — 직각 모서리 금지
 - 그림자는 Standard가 기본, Brand Glow(#2C1E74 16%)는 **장표당 1개**
 - Hero Gradient `135deg #1456f0 → #3b82f6 → #60a5fa` — 각도·정지점·색 변경 금지, 항상 Brand Glow와 함께, 위 텍스트는 흰색
-- 로고: 우상단 x=11.613" y=0.44" 1.22×0.24", **원본 그대로**. 배경 박스·밑줄·그림자·보정·크롭·회전은 전부 디펙트
-- 이모지 금지, 8–900 웨이트는 디바이더·클로징에만
+- 로고: 우상단, **오른쪽 끝이 10.3333"(우측 0.5" 여백)**, y=0.44", 높이 0.24"에 폭은 원본 비율 자동(헬퍼가 PNG 헤더를 읽어 계산). **원본 그대로** — 배경 박스·밑줄·그림자·보정·크롭·회전은 전부 디펙트
+- 이모지 금지
 
 ## 5. QA (내보내기 전 필수)
 
@@ -92,23 +96,23 @@ python3 /mnt/skills/public/pptx/scripts/office/validate.py deck.pptx [--original
 python3 /mnt/skills/public/pptx/scripts/thumbnail.py deck.pptx deck-thumbs   # 전 장표 육안 확인
 ```
 
-`check_layout.py`는 체크리스트를 기계화한 것이다 — 슬라이드 크기, Pretendard 외 폰트, 9pt 미만, 본문 하드 경계·클리어런스 침범, 5존 앵커 이탈, 하단 30% 공백·본문 점유율, Hero Gradient 개수와 센티넬 잔존, Brand Glow 개수, 로고 비율과 **로고 뒤 도형**, 이모지, 팔레트 밖 색상, 차트 부재(경고)를 잡는다. FAIL이 남은 채로 내보내지 않는다.
+`check_layout.py`는 체크리스트를 기계화한 것이다 — A4 가로 슬라이드 크기, 맑은 고딕 외 폰트, 9pt 미만, 본문 하드 경계·클리어런스 침범, 5존 앵커 이탈, 하단 30% 공백·본문 점유율, Hero Gradient 개수와 센티넬 잔존, Brand Glow 개수, 로고 위치·비율과 **로고 뒤 도형**, 이모지, 팔레트 밖 색상, 차트 부재(경고)를 잡는다. `assets/ksa_logo.png`가 있으면 그 원본 비율과도 대조한다. FAIL이 남은 채로 내보내지 않는다.
 
-기계가 못 잡는 것은 눈으로 본다: 헤드라인이 2줄을 넘는가(넘으면 문장을 줄인다 — 32pt로 낮춰도 1.75"를 넘기지 않아야 한다), 카드 안 텍스트가 넘치는가, 차트 라벨이 겹치는가, 그라디언트와 차트가 같은 장표에서 싸우는가(그러면 차트가 이긴다 — 그라디언트를 다른 장표로).
+기계가 못 잡는 것은 눈으로 본다: **헤드라인이 두 줄이 되지 않았는가**(A4 가로 32pt 한 줄은 한글 22자 안팎이 한계 — 넘으면 폰트를 줄이지 말고 문장을 줄인다), 카드 안 텍스트가 넘치는가, 차트 라벨이 겹치는가, 그라디언트와 차트가 같은 장표에서 싸우는가(그러면 차트가 이긴다 — 그라디언트를 다른 장표로).
 
-**렌더 특성(오탐 주의).** QA 렌더 머신에 Pretendard가 없으면 대체 폰트로 그려져 글줄 폭 판정이 부정확하다 — 폭이 애매하면 실물 PowerPoint 기준으로 판단하되 서체는 절대 바꾸지 않는다. 최종 파일은 PowerPoint에서 **글꼴 포함 저장**(파일 → 옵션 → 저장 → "파일에 글꼴 포함")해야 Pretendard가 없는 PC에서도 레이아웃이 유지된다 — 이건 스크립트로 못 하므로 산출물 전달 시 사용자에게 안내한다.
+**렌더 특성(오탐 주의).** QA 렌더 머신(리눅스)에 맑은 고딕이 없으면 대체 폰트로 그려져 글줄 폭 판정이 부정확하다 — 폭이 애매하면 실물 PowerPoint 기준으로 판단하되 서체는 절대 바꾸지 않는다. 맑은 고딕은 Windows 기본 탑재라 **글꼴 임베드가 필요 없다.** 다만 macOS·리눅스 사용자에게 전달할 때는 서체를 바꾸지 말고 PDF를 함께 낸다.
 
-## 6. Brandlogy 템플릿(.pptx)이 주어졌을 때
+## 6. 표준 템플릿(.pptx)이 주어졌을 때
 
 1. `thumbnail.py`로 레이아웃을 훑고 `markitdown`으로 텍스트를 확인한다.
 2. 언팩 → `add_slide.py`로 필요한 장표를 복제 → `<p:sldIdLst>` 정리 → `clean.py` → 슬라이드 XML 텍스트 교체 → 다시 zip → `validate.py --original 템플릿.pptx`. (pptx 스킬 절차 그대로)
 3. 템플릿 슬롯 수와 실제 항목 수가 다르면 텍스트만 지우지 말고 **그룹(도형+텍스트) 전체를 삭제**한다.
-4. 교체 후에도 `check_layout.py`를 돌린다 — 템플릿을 쓰더라도 존 좌표·경계·로고 무결성은 동일하게 요구된다.
+4. 교체 후에도 `check_layout.py`를 돌린다 — 템플릿을 쓰더라도 A4 가로·존 좌표·경계·로고 무결성은 동일하게 요구된다. 템플릿이 16:9면 그대로 쓰지 말고 사용자에게 A4 가로 판형을 확인받는다.
 5. 템플릿에 남은 예시 문구·타사 로고·플레이스홀더 이미지가 잔존하지 않도록 전수 확인한다.
 
 ## 7. 파일 규칙
 
-- 산출 파일명: `<덱 이름>_Brandlogy_v<n>.pptx` (사용자 지정 시 그에 따름)
+- 산출 파일명: `<덱 이름>_v<n>.pptx` (사용자 지정 시 그에 따름)
 - 원본 템플릿·로고 파일은 수정하지 않는다 — 항상 사본으로 작업
 - 차트·데이터 라벨은 **라이브 텍스트**로 유지한다(이미지로 굽지 않는다). Sankey·네트워크처럼 PowerPoint에 없는 차트만 예외
 - 미리보기 이미지는 1920×1080 이상

@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""check_layout.py — Brandlogy 디자인 시스템 자동 점검 (Iteration Checklist 기계화).
+"""check_layout.py — 디자인 시스템 자동 점검 (Iteration Checklist 기계화).
 
     python3 check_layout.py deck.pptx [--special 1,5] [--strict]
 
 검사 항목
-  1  16:9 (13.333" × 7.5") 슬라이드 크기
-  2  Pretendard 외 폰트 사용
+  1  A4 가로 (10.8333" × 7.5") 슬라이드 크기
+  2  맑은 고딕 외 폰트 사용
   3  본문 하드 경계 침범 (2.39"–6.85"), 클리어런스 버퍼(6.85"–7.05") 침범
   4  5존 앵커 고정 (챕터 0.40 / 헤드라인 1.00 / 부제 1.63 / 본문 2.39 / 푸터 7.05)
   5  본문 밀도 — 하단 30% 밴드 공백, 본문 박스 점유율
   6  Hero Gradient 개수(장표 1 / 덱 3), 센티넬 잔존
   7  Brand Glow 장표당 1개
   8  최소 폰트 9pt
-  9  로고 존재·비율·로고 뒤 도형(디펙트)
+  9  로고 존재·위치·비율·로고 뒤 도형(디펙트)
  10  이모지
  11  팔레트 밖 색상 (경고)
  12  차트/도식 없는 본문 장표 (경고 — Visualization-First)
@@ -31,11 +31,14 @@ EMU = 914400.0
 A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
 P = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
 
-SLIDE_W, SLIDE_H = 13.333, 7.5
+SLIDE_W, SLIDE_H = 10.8333, 7.5
 ANCHORS = {"챕터": 0.40, "헤드라인": 1.00, "부제": 1.63, "본문": 2.39, "푸터": 7.05}
 BODY_TOP, BODY_BOTTOM, CLEAR_BOTTOM = 2.39, 6.85, 7.05
 TOL = 0.02
-LOGO_W, LOGO_H, LOGO_X, LOGO_Y = 1.22, 0.24, 11.613, 0.44
+LOGO_H, LOGO_Y, LOGO_RIGHT, LOGO_MAX_W = 0.24, 0.44, SLIDE_W - 0.5, 1.9
+FONT_OK = ("맑은 고딕", "Malgun Gothic")
+# 저장소에 로고 원본이 있으면 그 비율과 대조한다
+LOGO_ASSET = __import__("pathlib").Path(__file__).resolve().parent.parent / "assets" / "ksa_logo.png"
 
 PALETTE = {
     "1456F0", "3B82F6", "60A5FA", "BFDBFE", "2563EB", "1D4ED8", "17437D", "3DAEFF",
@@ -85,14 +88,28 @@ def texts(tree):
     return [(t.text or "") for t in tree.iter(f"{A}t")]
 
 
+def png_ratio(p):
+    """PNG 헤더에서 가로/세로 비율 (없으면 None)"""
+    try:
+        with open(p, "rb") as f:
+            head = f.read(24)
+        if head[1:4] != b"PNG":
+            return None
+        w, h = int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")
+        return w / h if h else None
+    except OSError:
+        return None
+
+
 def check(path, special, strict):
     fails, warns = [], []
+    src_ratio = png_ratio(LOGO_ASSET)
     with zipfile.ZipFile(path) as z:
         pres = ET.fromstring(z.read("ppt/presentation.xml"))
         sz = pres.find(f"{P}sldSz")
         w_in, h_in = int(sz.get("cx")) / EMU, int(sz.get("cy")) / EMU
         if abs(w_in - SLIDE_W) > 0.02 or abs(h_in - SLIDE_H) > 0.02:
-            fails.append(f"[deck] 슬라이드 크기 {w_in:.3f}\"×{h_in:.3f}\" — 16:9 13.333×7.5 이어야 한다")
+            fails.append(f"[deck] 슬라이드 크기 {w_in:.3f}\"×{h_in:.3f}\" — A4 가로 10.833×7.5 이어야 한다")
 
         names = sorted((n for n in z.namelist()
                         if re.fullmatch(r"ppt/slides/slide\d+\.xml", n)),
@@ -110,8 +127,8 @@ def check(path, special, strict):
             for f in tree.iter():
                 if f.tag in (f"{A}latin", f"{A}ea", f"{A}cs"):
                     face = f.get("typeface", "")
-                    if face and not face.startswith("Pretendard") and not face.startswith("+"):
-                        fails.append(f"{tag} Pretendard 외 폰트: {face}")
+                    if face and not face.startswith(FONT_OK) and not face.startswith("+"):
+                        fails.append(f"{tag} 맑은 고딕 외 폰트: {face}")
             for rpr in tree.iter(f"{A}rPr"):
                 sz_ = rpr.get("sz")
                 if sz_ and int(sz_) < 900:
@@ -137,13 +154,13 @@ def check(path, special, strict):
 
             # 5 밀도
             if not is_special:
-                body_area = 12.333 * (BODY_BOTTOM - BODY_TOP)
+                body_area = (SLIDE_W - 1.0) * (BODY_BOTTOM - BODY_TOP)
                 covered = 0.0
                 bottom_band = False
                 for b in bs:
                     top, bot = max(b.y, BODY_TOP), min(b.bottom, BODY_BOTTOM)
                     if bot > top:
-                        covered += (bot - top) * min(b.w, 12.333)
+                        covered += (bot - top) * min(b.w, SLIDE_W - 1.0)
                         if bot > BODY_BOTTOM - 0.30 * (BODY_BOTTOM - BODY_TOP):
                             bottom_band = True
                 ratio = covered / body_area
@@ -158,7 +175,7 @@ def check(path, special, strict):
             if g > 1:
                 fails.append(f"{tag} Hero Gradient {g}개 — 장표당 1개")
             if "0A0B0C" in raw:
-                fails.append(f"{tag} 그라디언트 센티넬(0A0B0C) 잔존 — apply_gradient.py 를 실행하지 않았다")
+                fails.append(f"{tag} 그라디언트 센티넬(0A0B0C) 잔존 — postprocess.py 를 실행하지 않았다")
 
             # 7 Brand Glow
             glow = len(re.findall(r'<a:outerShdw[^>]*>\s*<a:srgbClr val="2C1E74"', raw))
@@ -168,12 +185,16 @@ def check(path, special, strict):
             # 9 로고
             pics = [b for b in bs if b.kind == "pic"]
             logo = [b for b in pics
-                    if abs(b.y - LOGO_Y) <= 0.06 and b.x > SLIDE_W / 2 and abs(b.h - LOGO_H) <= 0.06]
+                    if abs(b.y - LOGO_Y) <= 0.10 and b.x > SLIDE_W / 2 and 0.10 <= b.h <= LOGO_H + 0.06]
             if not logo and not is_special:
-                warns.append(f"{tag} 우상단 로고 없음 — 사용자 제공 Brandlogy 누끼 PNG를 넣을 것")
+                warns.append(f"{tag} 우상단 로고 없음 — 한국표준협회(KSA) 누끼 PNG를 넣을 것")
             for b in logo:
-                if abs(b.w / b.h - LOGO_W / LOGO_H) > 0.06:
-                    fails.append(f"{tag} 로고 종횡비 변형: {b.w:.3f}×{b.h:.3f}\" — 원본 비율 고정")
+                if abs((b.x + b.w) - LOGO_RIGHT) > 0.03:
+                    fails.append(f"{tag} 로고 우측 끝 {b.x + b.w:.3f}\" — 오른쪽 여백 0.5\"(={LOGO_RIGHT:.3f}\")로 맞출 것")
+                if b.w > LOGO_MAX_W + TOL:
+                    fails.append(f"{tag} 로고 폭 {b.w:.3f}\" — 상한 {LOGO_MAX_W}\"")
+                if src_ratio and abs(b.w / b.h - src_ratio) > 0.06:
+                    fails.append(f"{tag} 로고 종횡비 변형: {b.w:.3f}×{b.h:.3f}\" (원본 비율 {src_ratio:.2f})")
                 for o in bs:
                     if o is b or o.kind not in ("sp", "cxnSp"):
                         continue
@@ -190,6 +211,12 @@ def check(path, special, strict):
                     warns.append(f"{tag} 팔레트 밖 색상 #{c.upper()}")
             if not is_special and not any(b.kind == "graphicFrame" for b in bs):
                 warns.append(f"{tag} 차트·표 없음 — 데이터·비교·프로세스를 다루면 시각화할 것(Visualization-First)")
+
+        # 차트 파트 폰트 (슬라이드 XML에는 안 나온다)
+        for name in (n for n in z.namelist() if re.fullmatch(r"ppt/charts/chart\d+\.xml", n)):
+            for face in set(re.findall(r'<a:(?:latin|ea|cs) typeface="([^"]+)"', z.read(name).decode("utf-8"))):
+                if not face.startswith(FONT_OK) and not face.startswith("+"):
+                    fails.append(f"[{name.split('/')[-1]}] 맑은 고딕 외 폰트: {face}")
 
         if grad_total > 3:
             fails.append(f"[deck] Hero Gradient {grad_total}개 — 덱 전체 3개 상한 초과")
