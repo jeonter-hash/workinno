@@ -27,6 +27,7 @@ claude.ai·Cowork 웹이면 스킬 관리 화면에서 이 zip을 그대로 올�
 | Python 3 | 후처리·점검 스크립트. **표준 라이브러리만** 쓴다 |
 | 맑은 고딕 | 완성 파일을 여는 PC에 필요(Windows 기본). 없는 환경엔 PDF로 전달 |
 | KSA 로고 | `assets/ksa_logo.jpg`로 **포함**돼 있다 |
+| 밀도 | 기본 본문 9.5pt. 20행 표처럼 많으면 `createDeck({mode:'report', dense:true})`로 9pt(한 장 13행) |
 
 ## 3. 사용법 — 말로 시킨다
 
@@ -40,7 +41,7 @@ claude.ai·Cowork 웹이면 스킬 관리 화면에서 이 zip을 그대로 올�
 ```bash
 SK=~/.claude/skills/REPORT_PPT
 mkdir build && cp $SK/assets/{ksa_mono.js,example_deck.js,ksa_logo.jpg} build/ && cd build
-node example_deck.js deck.pptx                        # 12장 예시 생성
+node example_deck.js deck.pptx                        # 보고서용 13장 예시 생성
 python3 $SK/scripts/postprocess.py deck.pptx          # 필수
 python3 $SK/scripts/check_layout.py deck.pptx --mode report --special 1
 ```
@@ -51,11 +52,12 @@ python3 $SK/scripts/check_layout.py deck.pptx --mode report --special 1
 
 생성 단계에서 예외를 던져 **파일이 만들어지지 않는다**:
 
-- 본문이 2.39"–6.85" 밖으로 나감
+- 본문이 2.20"–6.85" 밖으로 나감
 - 표 열 폭 합계가 우측 여백 초과 / 행의 칸 수 불일치
 - 네이티브 표가 글 길이 때문에 자라서 벽을 넘음
+- 불릿이 지정한 상자 높이를 넘침
 
-만든 뒤 `check_layout.py`가 잡는 것: A4 판형 · 맑은 고딕 외 폰트(표·차트 내부까지) · 9pt 미만 · 슬라이드 밖 이탈 · 본문 벽 침범(네이티브 표는 실제 행 높이 합산) · 5존 앵커 이탈 · 하단 30% 공백 · 의도하지 않은 검은 윤곽선 · 흐린 글자색 · 유채색 · 로고 위치/비율/로고 뒤 도형 · 이모지 · 차트 구조 결함.
+만든 뒤 `check_layout.py`가 잡는 것(빈 띠·요소 겹침 포함): A4 판형 · 맑은 고딕 외 폰트(표·차트 내부까지) · 9pt 미만 · 슬라이드 밖 이탈 · 본문 벽 침범(네이티브 표는 실제 행 높이 합산) · 5존 앵커 이탈 · 하단 30% 공백 · 의도하지 않은 검은 윤곽선 · 흐린 글자색 · 유채색 · 로고 위치/비율/로고 뒤 도형 · 이모지 · 차트 구조 결함.
 
 ## 6. 알아둘 것
 

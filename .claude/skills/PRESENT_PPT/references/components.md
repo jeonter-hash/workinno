@@ -4,7 +4,13 @@
 
 ```js
 const B = require('./ksa_mono.js');
-const deck = B.createDeck({ mode:'report', title:'...', author:'한국표준협회' });  // mode: 'present' | 'report'
+const deck = B.createDeck({
+  mode:'report',            // 'present' | 'report'
+  palette:'mono',           // 'mono' | 'accent' (발표용 기본은 accent)
+  dense:false,              // 보고서용에서만 — 내용이 많을 때 한 단계 낮춘 밀도
+  title:'AX 전환 로드맵',
+  docTitle:'AX 전환 로드맵', // 마스터 우측 상단에 반복 표기
+});
 const s = deck.slide({ chapter:'1. 요약', source:'출처: ...' });                  // 5존 프레임 자동
 B.head(s, '헤드라인');   B.sub(s, '부제');
 await deck.save('out.pptx');
@@ -16,7 +22,7 @@ await deck.save('out.pptx');
 |---|---|
 | `K` | 무채색 팔레트 (`K.ink` `K.g1`~`K.g7` `K.w`) |
 | `M` `CW` `W` `H` | 여백 0.5 · 콘텐츠 폭 9.8333 · 슬라이드 10.8333 × 7.5 |
-| `BT` `BB` | 본문 상한 2.39 · 하한 6.85 (벽) |
+| `BT` `BB` | 본문 상한 2.20 · 하한 6.85 (벽) |
 | `Z` | 존 좌표 (`Z.body.x` 등) |
 | `deck.T` | 현재 모드의 크기표 (`T.body` `T.rowH` `T.pad` …) |
 
@@ -39,7 +45,15 @@ await deck.save('out.pptx');
 | `hr(s, {x,y,w,color,width})` | 수평선 |
 | `underline(s, text, pt, {x,y})` | **글자 폭에 맞춘** 밑줄 |
 | `sectionTitle(s, t, {x,y,w})` | 소제목 + 먹 구분선 |
-| `logoAt(s, {})` | 로고를 우상단에 원본 비율로 (표지·클로징용) |
+| `logoAt(s, {})` | 로고를 우상단에 원본 비율로 (표지용) |
+| `source(s, t, {x,y,w})` | 출처 — 도식·표 **바로 아래**에 붙인다. 푸터에 두지 않는다 |
+
+## 표지·목차
+
+| 호출 | 설명 |
+|---|---|
+| `cover(deck, {title, subtitle, org, team, date})` | 표지. 격자 모티프 + 제목. 슬라이드 번호 없음 |
+| `toc(deck, {items})` | 목차. `items[i]`가 `{n,t,p}`면 장, `{t,p}`면 세부 항목. 점선 리더 + 쪽번호 |
 
 ## 표
 
@@ -69,7 +83,10 @@ await deck.save('out.pptx');
 ## 자주 쓰는 밴드
 
 ```js
-B.kpiRow(s, items, { y:BT, h:1.15 });                    // 상단 KPI
-B.tableNative(s, { x:M, y:BT+1.36, … });                 // 그 아래 표
-B.callout(s, '결론 …', { x:M, y:BB-0.56, w:CW, h:0.56 }); // 하단 결론
+B.kpiRow(s, items, { y:BT, h:1.25 });                    // 상단 KPI
+B.tableNative(s, { x:M, y:BT+1.50, … });                 // 그 아래 표
+B.callout(s, '결론 …', { x:M, y:BB-0.58, w:CW, h:0.58 }); // 하단 결론
 ```
+
+**하단 기준선까지 채운다.** 도형·표를 늘려 6.85"에 닿게 하고, 점검기의 `빈 띠` 경고(0.45" 초과)가 나오면 늘린다.
+간트·워터폴은 실제 하단 y를 반환하므로 그 값으로 다음 요소를 배치한다(`const gB = B.gantt(...)`).

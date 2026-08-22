@@ -9,19 +9,30 @@ const fs = require('fs'), path = require('path');
 
 /* ── 무채색 팔레트 (색상 없음) ───────────────────────────── */
 const K = { ink:'111111', g1:'3A3A3A', g2:'6B6B6B', g3:'9E9E9E', g4:'C7C7C7', g5:'E4E4E4', g6:'F4F4F4', g7:'FAFAFA', w:'FFFFFF' };
+
+/**
+ * 색 체계. 기본은 무채색(mono)이고, 'accent'는 KSA 로고에서 뽑은 두 색만 더한다.
+ *   dark  구조색 — 표 머리글·체브론 진행 단계·트리 루트·조직 최상위
+ *   acc   강조색 — 장표당 1~2곳만 (우선 항목·마일스톤·핵심 KPI)
+ * 회색 스케일과 본문 글자색은 두 모드가 같다. 색이 의미를 갖는 자리에만 쓴다.
+ */
+const PALETTE = {
+  mono:   { dark:K.ink,   mid:K.g2,     acc:K.ink,   accSoft:K.g6,   onDark:K.w },
+  accent: { dark:'1F3864', mid:'4A6491', acc:'C4303C', accSoft:'F2E4E6', onDark:K.w },
+};
 const FONT = '맑은 고딕';
 const TEXT_MIN = K.g2;          // 흰 배경 위 글자의 최소 명도 — 이보다 흐리면 쓰지 않는다
 
 /* ── 판형·존 (A4 가로) ──────────────────────────────────── */
 const W = 10.8333, H = 7.5, M = 0.5, CW = W - 2*M;
-const BT = 2.39, BB = 6.85;                    // 본문 상·하한 (벽)
+const BT = 2.20, BB = 6.85;   // 부제 하단(2.03)과 0.17" 간격                    // 본문 상·하한 (벽)
 const Z = {
   chapter:{ x:M, y:0.40, w:6.2, h:0.30 },
   rule:   { y:0.82 },
   logo:   { y:0.44, h:0.24 },
   head:   { x:M, y:1.00, w:CW, h:0.75 },
   sub:    { x:M, y:1.63, w:CW, h:0.40 },
-  body:   { x:M, y:BT,   w:CW, h:BB-BT },
+  body:   { x:M, y:BT,   w:CW, h:BB-BT },   // 4.65"
   foot:   { x:M, y:7.05, w:CW, h:0.25 },
 };
 const col = (CW-11*0.2)/12;
@@ -35,7 +46,11 @@ const MODE = {
   present: { name:'발표용', chapter:14, h1:24, sub:13, h2:14, body:11.5, small:10, cap:9.5,
              kpi:34, kpiLabel:10.5, tableHead:10.5, tableBody:10.5, rowH:0.44, pad:0.17, lh:1.35, gap:0.20 },
   report:  { name:'보고서용', chapter:12, h1:20, sub:11.5, h2:12, body:9.5, small:9, cap:9,
-             kpi:24, kpiLabel:9, tableHead:9.5, tableBody:9.5, rowH:0.32, pad:0.12, lh:1.28, gap:0.14 },
+             kpi:24, kpiLabel:9, tableHead:9.5, tableBody:9.5, rowH:0.335, pad:0.12, lh:1.28, gap:0.14 },
+  // dense — 20행 표처럼 내용이 많을 때만. 한 장 수용량이 약 18% 늘어난다(11행 → 13행).
+  // 8.5pt가 하한이며 그 아래는 인쇄·투사 어디서도 안전하지 않다.
+  report_dense: { name:'보고서용(고밀도)', chapter:11.5, h1:19, sub:11, h2:11.5, body:9, small:8.5, cap:8.5,
+             kpi:22, kpiLabel:8.5, tableHead:9, tableBody:9, rowH:0.295, pad:0.10, lh:1.25, gap:0.12 },
 };
 
 /* ── 글자 폭 추정 (밑줄을 글자 폭에 맞추는 데 사용) ───────── */
@@ -77,20 +92,41 @@ function findLogo(explicit){
 
 /* ── 덱 ─────────────────────────────────────────────────── */
 function createDeck(o={}){
-  const T = MODE[o.mode||'present'];
+  // o.docTitle — 본문 헤더 우측에 반복 표기할 문서 제목 (없으면 o.title)
+  // o.dense    — 보고서용에서만. 표가 20행에 이르는 등 내용이 많을 때 한 단계 낮춘 밀도를 쓴다.
+  const key = (o.mode||'present') === 'report' && o.dense ? 'report_dense' : (o.mode||'present');
+  const T = MODE[key];
   if (!T) throw new Error("mode는 'present' 또는 'report'");
+  const C = PALETTE[o.palette || 'mono'];
+  if (!C) throw new Error("palette는 'mono' 또는 'accent'");
   const pres = new P();
   pres.defineLayout({ name:'A4L', width:W, height:H }); pres.layout='A4L';
+  // 본문 마스터 — 헤더 헤어라인 + PowerPoint 자동 슬라이드 번호(하단 가운데)
+  const docTitle = o.docTitle || o.title || '문서 제목';
+  pres.defineSlideMaster({
+    title:'KSA_BODY', background:{ color:K.w },
+    objects:[
+      { line:{ x:M, y:Z.rule.y, w:CW, h:0, line:{ color:K.g4, width:0.75 } } },
+      // 우측 상단 문서 제목 — 마스터에 있으므로 [보기 → 슬라이드 마스터]에서 한 번 고치면 전 장표에 반영된다
+      { text:{ text:docTitle, options:{ x:W-M-5.0, y:Z.chapter.y, w:5.0, h:Z.chapter.h,
+        fontFace:FONT, fontSize:T.chapter, color:K.g3, align:'right', valign:'middle', margin:0 } } },
+    ],
+    slideNumber:{ x:0, y:7.05, w:W, h:0.25, align:'center',
+                  fontFace:FONT, fontSize:T.cap, color:K.g2 },
+  });
+  // 표지·간지 마스터 — 번호 없음
+  pres.defineSlideMaster({ title:'KSA_TITLE', background:{ color:K.w } });
   if (o.title) pres.title=o.title;
   if (o.author) pres.author=o.author;
   const logo = findLogo(o.logo);
-  const deck = { pres, T, logo, page:0,
+  const deck = { pres, T, C, logo, page:0, docTitle: o.docTitle || o.title || '',
     slide(opt={}){
-      const s = pres.addSlide(); s.background={color:K.w}; s._T=T; s._deck=deck;
+      const s = pres.addSlide({ masterName:'KSA_BODY' }); s._T=T; s._C=C; s._deck=deck;
       deck.page += 1; s._page = opt.page==null? deck.page : opt.page;
       frame(s, opt); return s;
     },
-    bare(opt={}){ const s=pres.addSlide(); s.background={color:opt.bg||K.w}; s._T=T; s._deck=deck;
+    bare(opt={}){ const s=pres.addSlide({ masterName:'KSA_TITLE' });
+      if (opt.bg) s.background={color:opt.bg}; s._T=T; s._C=C; s._deck=deck;
       deck.page+=1; s._page=opt.page==null?deck.page:opt.page; return s; },
     save(f){ return pres.writeFile({ fileName:f }).then(()=>f); },
   };
@@ -102,13 +138,8 @@ function frame(s, o={}){
   const T=s._T, d=s._deck;
   if (o.chapter) s.addText(o.chapter, { ...Z.chapter, fontFace:FONT, fontSize:T.chapter, bold:true,
     color:K.g2, valign:'middle', margin:0, charSpacing:0.2 });
-  if (d.logo){ const sz=imgSize(d.logo), h=Z.logo.h, w=sz? +(h*sz.w/sz.h).toFixed(4):1.22;
-    s.addImage({ path:d.logo, x:+(W-M-w).toFixed(4), y:Z.logo.y, w, h, altText:'한국표준협회 로고' }); }
-  s.addShape('line', { x:M, y:Z.rule.y, w:CW, h:0, line:{ color:K.g4, width:0.75 } });
-  s.addText(String(o.page==null? s._page : o.page), { ...Z.foot, w:2, fontFace:FONT, fontSize:T.cap,
-    color:K.g2, valign:'middle', margin:0 });
-  if (o.source) s.addText(o.source, { x:M+3.6, y:Z.foot.y, w:CW-3.6, h:Z.foot.h, fontFace:FONT,
-    fontSize:T.cap, color:K.g2, align:'right', valign:'middle', margin:0 });
+  // 우측 상단(문서 제목)은 슬라이드 마스터가 그린다 — 여기서는 비워 둔다.
+  // 헤더 헤어라인과 페이지 번호는 마스터가 그린다. 출처는 본문 안 caption/source로 붙인다.
   return s;
 }
 /** 로고를 우상단(오른쪽 여백 0.5")에 원본 비율로 배치 */
@@ -159,7 +190,8 @@ function kpiRow(s, items, o){
   const T=s._T, cells=split(items.length), h=o.h||1.15;
   items.forEach((it,i)=>{
     const c=cells[i], dark=!!it.dark;
-    box(s,{ x:c.x, y:o.y, w:c.w, h, fill:dark?K.ink:K.w, line:dark?K.ink:K.g4, what:'KPI' });
+    const dc = it.acc ? s._C.acc : s._C.dark;
+    box(s,{ x:c.x, y:o.y, w:c.w, h, fill:dark?dc:K.w, line:dark?dc:K.g4, what:'KPI' });
     const p=T.pad, valSz=Math.min(it.size||T.kpi, Math.floor((c.w-2*p)*72/(0.62*String(it.v).length)));
     txt(s,it.v,{ x:c.x+p, y:o.y+p*0.7, w:c.w-2*p, h:h-2*p-0.30, sz:valSz, b:true,
       c:dark?K.w:K.ink, valign:'bottom', lh:1.1, wrap:false });
@@ -175,7 +207,7 @@ function table(s, o){
     throw new Error(`표 폭 합계 ${total}"가 우측 여백을 넘음 — x=${o.x}에서 쓸 수 있는 폭은 ${+(W-M-o.x).toFixed(4)}"`);
   o.rows.forEach((r,i)=>{ if (r.length!==colW.length)
     throw new Error(`표 ${i+1}행의 칸 수(${r.length})가 열 수(${colW.length})와 다름`); });
-  s.addShape('rect',{ x:o.x, y:o.y, w:total, h:headH, fill:{color:K.ink}, line:{type:'none'} });
+  s.addShape('rect',{ x:o.x, y:o.y, w:total, h:headH, fill:{color:s._C.dark}, line:{type:'none'} });
   let cxp=o.x;
   o.head.forEach((t,i)=>{
     txt(s,t,{ x:cxp+0.08, y:o.y, w:colW[i]-0.16, h:headH, sz:T.tableHead, b:true, c:K.w,
@@ -213,7 +245,7 @@ function tableNative(s, o){
   const headH = Math.max(o.headH||rowH, grow(rowLines(o.head, T.tableHead), T.tableHead));
   const rowHs = o.rows.map(r => Math.max(rowH, grow(rowLines(r, T.tableBody), T.tableBody)));
   const tall = +(headH + rowHs.reduce((a,b)=>a+b,0)).toFixed(3);
-  guard(o.y, tall, '표');
+  guard(o.y, tall, `표(slide ${s._page})`);
   if (o.x + total > W - M + 0.005)
     throw new Error(`표 폭 합계 ${total}"가 우측 여백을 넘음 — x=${o.x}에서 쓸 수 있는 폭은 ${+(W-M-o.x).toFixed(4)}"`);
   o.rows.forEach((r,i)=>{ if (r.length!==colW.length)
@@ -221,9 +253,9 @@ function tableNative(s, o){
   const hair = c => ({ type:'solid', color:c, pt:0.75 });
   const none = { type:'none' };
   const headRow = o.head.map((t)=>({ text:String(t), options:{
-    fill:{ color:K.ink }, color:K.w, bold:true, fontSize:T.tableHead,
+    fill:{ color:s._C.dark }, color:K.w, bold:true, fontSize:T.tableHead,
     align:'center', valign:'middle',              // 표 머리글은 항상 가운데 정렬
-    border:[none,none,hair(K.ink),none] } }));
+    border:[none,none,hair(s._C.dark),none] } }));
   const bodyRows = o.rows.map((r,ri)=> r.map((t,i)=>({ text:String(t), options:{
     fill:{ color: ri%2 ? K.g7 : K.w }, color: t==='—'?K.g3:K.ink,
     bold: !!(o.boldCol && o.boldCol.includes(i)), fontSize:T.tableBody,
@@ -237,7 +269,15 @@ function tableNative(s, o){
 }
 
 function bullets(s, items, o){
-  const T=s._T;
+  const T=s._T, sz=o.sz||T.body, lh=o.lh||T.lh, space=(o.space==null?4:o.space)/72;
+  // 글이 상자를 넘치면 아래 요소를 덮는다 — 미리 계산해 막는다
+  const need = items.reduce((a,t)=>{
+    const str = typeof t==='string' ? t : t.text;
+    return a + lines(str, sz, o.w-0.12) * sz * lh / 72;
+  }, 0) + (items.length-1)*space + 0.06;
+  if (o.h && need > o.h + 0.02)
+    throw new Error(`불릿 ${items.length}개가 높이 ${o.h}"를 넘는다(필요 ${need.toFixed(2)}") — `
+      + `높이를 키우거나 문장을 줄일 것`);
   const runs=items.map((t,i)=>({ text:typeof t==='string'?t:t.text,
     options:{ bullet:{ code:'2013' }, breakLine:i<items.length-1, ...(typeof t==='object'&&t.b?{bold:true}:{}) } }));
   s.addText(runs, { x:o.x, y:o.y, w:o.w, h:o.h, fontFace:FONT, fontSize:o.sz||T.body, color:K.ink,
@@ -248,7 +288,7 @@ function chevrons(s, steps, o){
   steps.forEach((st,i)=>{
     const x=o.x+i*(step-0.05);
     s.addShape(i===0?'homePlate':'chevron',{ x, y:o.y, w:chW, h,
-      fill:{ color: st.tone==='light'?K.g4 : st.tone==='mid'?K.g2 : K.ink }, line:{ color:K.w, width:1 } });
+      fill:{ color: st.tone==='light'?K.g4 : st.tone==='mid'?s._C.mid : (st.tone==='acc'? s._C.acc : s._C.dark) }, line:{ color:K.w, width:1 } });
     txt(s,st.t,{ x:x+(i?0.30:0.14), y:o.y, w:chW-0.55, h, sz:o.sz||T.body, b:true,
       c: st.tone==='light'?K.ink:K.w, align:'center', valign:'middle', wrap:false });
     if (st.d) txt(s,st.d,{ x:x+(i?0.26:0.10), y:o.y+h+0.10, w:step-0.10, h:0.46, sz:T.small, c:K.g2, lh:1.25 });
@@ -260,7 +300,7 @@ function waterfall(s, o){
   let run=0;
   steps.forEach((st,i)=>{
     const bx=o.x+i*gap+(gap-bw)/2; let top,hh,fill,ln;
-    if (st.base){ top=o.y+plotH-st.v*sc; hh=st.v*sc; run=st.v; fill=K.ink; ln=K.ink; }
+    if (st.base){ top=o.y+plotH-st.v*sc; hh=st.v*sc; run=st.v; fill=st.goal? s._C.acc : s._C.dark; ln=fill; }
     else { const from=run, to=run+st.v; run=to; top=o.y+plotH-Math.max(from,to)*sc; hh=Math.abs(st.v)*sc; fill=K.g5; ln=K.g2; }
     s.addShape('rect',{ x:bx, y:top, w:bw, h:hh, fill:{color:fill}, line:{color:ln,width:0.75} });
     txt(s,String(st.v),{ x:bx-0.18, y:top-0.24, w:bw+0.36, h:0.22, sz:T.small, b:true, align:'center', valign:'bottom' });
@@ -271,7 +311,7 @@ function waterfall(s, o){
 }
 function tree(s, o){
   const T=s._T, r=o.root, mids=o.mids;
-  s.addShape('rect',{ x:r.x, y:r.y, w:r.w, h:r.h, fill:{color:K.ink}, line:{type:'none'} });
+  s.addShape('rect',{ x:r.x, y:r.y, w:r.w, h:r.h, fill:{color:s._C.dark}, line:{type:'none'} });
   txt(s,r.t,{ x:r.x, y:r.y, w:r.w, h:r.h, sz:T.body, b:true, c:K.w, align:'center', valign:'middle', lh:1.2 });
   const stubX=r.x+r.w+0.22;
   hr(s,{ x:r.x+r.w, y:r.y+r.h/2, w:0.22, color:K.g3 });
@@ -306,8 +346,14 @@ function matrix(s, o){
   txt(s,o.xLabel,{ x:o.x, y:o.y+o.h+0.06, w:o.w, h:0.24, sz:T.small, c:K.g2, align:'center' });
   o.points.forEach(p=>{
     const px=o.x+p.px*o.w, py=o.y+p.py*o.h, d=p.d||0.34, hot=p.px<0.5&&p.py<0.5;
-    s.addShape('ellipse',{ x:px-d/2, y:py-d/2, w:d, h:d, fill:{color:hot?K.ink:K.g4}, line:{color:hot?K.ink:K.g2,width:0.75} });
-    txt(s,p.t,{ x:px+d/2+0.06, y:py-0.12, w:1.9, h:0.24, sz:T.small, b:hot, c:hot?K.ink:K.g2, valign:'middle' });
+    s.addShape('ellipse',{ x:px-d/2, y:py-d/2, w:d, h:d, fill:{color:hot?s._C.acc:K.g4}, line:{color:hot?s._C.acc:K.g2,width:0.75} });
+    // 오른쪽 끝 버블은 옆에 라벨을 둘 자리가 없다 → 버블 위에 가운데 정렬로 얹는다
+    const room = (o.labelRoom == null ? 1.96 : o.labelRoom);
+    const st = { sz:T.small, b:hot, c:hot?s._C.acc:K.g2, valign:'middle' };
+    if (px + d/2 + 0.06 + textW(p.t, T.small) > o.x + o.w + room)
+      txt(s, p.t, { x:px-1.0, y:py-d/2-0.26, w:2.0, h:0.24, ...st, align:'center' });
+    else
+      txt(s, p.t, { x:px+d/2+0.06, y:py-0.12, w:Math.min(1.9, textW(p.t,T.small)+0.12), h:0.24, ...st });
   });
 }
 function gantt(s, o){
@@ -325,9 +371,9 @@ function gantt(s, o){
     txt(s,r.t,{ x:o.x, y:y+0.04, w:labW-0.10, h:0.30, sz:T.small, b:true, valign:'middle' });
     hr(s,{ x:gx, y:y+rowH-0.04, w:gw, color:K.g6 });
     s.addShape('roundRect',{ x:gx+r.a*gw, y:y+0.08, w:(r.b-r.a)*gw, h:rowH-0.24, rectRadius:0.04,
-      fill:{ color: r.tone==='light'?K.g4 : r.tone==='mid'?K.g2 : K.ink }, line:{type:'none'} });
+      fill:{ color: r.tone==='light'?K.g4 : r.tone==='mid'?s._C.mid : s._C.dark }, line:{type:'none'} });
     const mx=gx+r.b*gw;
-    s.addShape('diamond',{ x:mx-0.085, y:y+(rowH-0.24)/2, w:0.17, h:0.17, fill:{color:K.w}, line:{color:K.ink,width:1} });
+    s.addShape('diamond',{ x:mx-0.085, y:y+(rowH-0.24)/2, w:0.17, h:0.17, fill:{color:K.w}, line:{color:s._C.acc,width:1.25} });
     if (r.ms) txt(s,r.ms,{ x:gx+gw+0.22, y:y+0.06, w:noteW-0.24, h:0.30, sz:T.small, c:K.g2, valign:'middle' });
   });
   return o.y+0.36+rowH*o.rows.length;
@@ -337,19 +383,27 @@ function layers(s, o){          // 3단 계층(교육체계 등)
   o.items.forEach((it,i)=>{
     const inset=(o.taper||0)*i, x=o.x+inset, w=o.w-2*inset;
     s.addShape('rect',{ x, y:o.y+i*h, w, h:h-0.06,
-      fill:{ color: i===0?K.ink : i===1?K.g2 : K.g5 }, line:{ color: i===2?K.g2:K.ink, width:0.75 } });
+      fill:{ color: i===0?s._C.dark : i===1?s._C.mid : K.g5 }, line:{ color: i===2?K.g2:s._C.dark, width:0.75 } });
     txt(s,it.t,{ x:x+0.16, y:o.y+i*h, w:w*0.32, h:h-0.06, sz:T.body, b:true, c:i===2?K.ink:K.w, valign:'middle' });
     txt(s,it.d,{ x:x+w*0.34, y:o.y+i*h, w:w*0.64, h:h-0.06, sz:T.small, c:i===2?K.g1:K.g5, valign:'middle', lh:1.2 });
   });
 }
 function callout(s, t, o){
   const T=s._T;
-  box(s,{ x:o.x, y:o.y, w:o.w, h:o.h, fill:o.dark?K.ink:K.g6, line:o.dark?K.ink:K.g4, what:'콜아웃' });
+  const cc = o.acc ? s._C.acc : s._C.dark;
+  box(s,{ x:o.x, y:o.y, w:o.w, h:o.h, fill:o.dark?cc:K.g6, line:o.dark?cc:K.g4, what:'콜아웃' });
   txt(s,t,{ x:o.x+T.pad, y:o.y, w:o.w-2*T.pad, h:o.h, sz:o.sz||T.body, b:true,
     c:o.dark?K.w:K.ink, valign:'middle', lh:1.3 });
 }
+/** 출처 — 도식·표 바로 아래에 붙인다. 우측 하단 푸터에 두지 않는다. */
+function source(s, t, o){
+  txt(s, t, { x:o.x, y:o.y, w:o.w, h:o.h||0.22, sz:Math.max(9, s._T.cap), c:K.g2, lh:1.2,
+    align:o.align||'left' });
+}
+
 function footnote(s, t, o){
-  txt(s,t,{ x:o.x, y:o.y, w:o.w, h:o.h||0.22, sz:Math.max(9,s._T.cap), c:K.g2, lh:1.2 });
+  txt(s,t,{ x:o.x, y:o.y, w:o.w, h:o.h||0.22, sz:Math.max(9,s._T.cap), c:K.g2, lh:1.2,
+    align:o.align||'left' });
 }
 function pill(s, t, o){
   const T=s._T, h=o.h||0.26;
@@ -358,7 +412,60 @@ function pill(s, t, o){
   txt(s,t,{ x:o.x, y:o.y, w:o.w, h, sz:o.sz||T.small, b:true, c:o.dark?K.w:K.ink, align:'center', valign:'middle', wrap:false });
 }
 
+/* ── 표지·목차 ─────────────────────────────────────────── */
+/**
+ * 표지 — 제목 전용. 우측에 격자 모티프(좌상 → 우하로 차오르는 체계의 은유)를 깔고
+ * 좌측에 제목·부제를, 하단에 기관·일자를 둔다. 목차는 넣지 않는다(다음 장이 목차다).
+ */
+function cover(deck, o){
+  const s = deck.bare({}); const C = s._C;
+  const gx=5.75, gy=1.30, cell=0.40, gap=0.07, ROW=11, COL=10;
+  for (let r=0;r<ROW;r++) for (let c=0;c<COL;c++){
+    const t=(r/(ROW-1))*0.55 + (c/(COL-1))*0.45;
+    const fill = t>0.86?K.ink : t>0.68?K.g2 : t>0.50?K.g4 : t>0.32?K.g5 : K.g7;
+    s.addShape('rect',{ x:gx+c*(cell+gap), y:gy+r*(cell+gap), w:cell, h:cell, fill:{color:fill}, line:{type:'none'} });
+  }
+  if (C.acc !== K.ink)   // 강조 팔레트일 때만 포인트 셀 하나
+    s.addShape('rect',{ x:gx+7*(cell+gap), y:gy+2*(cell+gap), w:cell, h:cell, fill:{color:C.acc}, line:{type:'none'} });
+  s.addShape('rect',{ x:0, y:2.10, w:5.55, h:2.55, fill:{color:K.w}, line:{type:'none'} });   // 제목 자리 확보
+  s.addShape('rect',{ x:0, y:6.35, w:W,    h:1.15, fill:{color:K.w}, line:{type:'none'} });   // 하단 정보 자리
+  logoAt(s,{});
+  txt(s, o.org||'한국표준협회', { x:M, y:0.40, w:5, h:0.30, sz:12, b:true, c:K.g2, valign:'middle' });
+  s.addShape('rect',{ x:M, y:2.45, w:0.10, h:1.55, fill:{color:C.acc}, line:{type:'none'} });
+  txt(s, o.title, { x:M+0.32, y:2.42, w:4.6, h:1.40, sz:38, b:true, lh:1.15 });
+  if (o.subtitle) txt(s, o.subtitle, { x:M+0.32, y:3.85, w:4.6, h:0.70, sz:12.5, c:K.g1, lh:1.4 });
+  txt(s, `${o.org||'한국표준협회'}${o.team? ' · '+o.team : ''}`, { x:M, y:6.60, w:5, h:0.28, sz:10.5, c:K.g2 });
+  if (o.date) txt(s, o.date, { x:W-M-3, y:6.60, w:3, h:0.28, sz:10.5, c:K.g2, align:'right' });
+  return s;
+}
+
+/**
+ * 목차 — 본문 장표 프레임을 그대로 쓴다. '목차'는 헤드라인에 한 번만 쓰고
+ * 좌상단 챕터명은 비워 중복을 없앤다. 항목은 {t, p} 또는 {n, t, p}(장) 형식.
+ */
+function toc(deck, o){
+  const s = deck.slide({ chapter: '' }); const C = s._C;
+  head(s, o.title || '목차');            // '목차'는 헤드라인에 한 번만 — 부제는 두지 않는다
+  const CH_H = 0.39, SUB_H = 0.27, GAP = 0.17;   // 장 구분선이 앞 항목 글자와 떨어지도록
+  let y = BT + 0.06;
+  hr(s, { x:M, y:BT, w:CW, color:K.ink, width:1 });   // 본문 앵커 겸 첫 장 구분선
+  o.items.forEach((it, i) => {
+    const top = !!it.n, sz = top ? 14 : 11.5;
+    if (top && i > 0) { y += GAP; hr(s, { x:M, y:y-0.05, w:CW, color:K.ink, width:1 }); }
+    if (top) txt(s, it.n, { x:M, y:y+0.05, w:0.6, h:0.30, sz:12.5, b:true, c:C.acc });
+    txt(s, it.t, { x:M+(top?0.90:1.20), y:y+0.04, w:6.0, h:0.30, sz, b:top, c:top?K.ink:K.g1 });
+    const lx = M + (top?0.90:1.20) + textW(it.t, sz) + 0.16;
+    s.addShape('line',{ x:lx, y:y+0.23, w:Math.max(0.2, W-M-0.85-lx), h:0,
+      line:{ color:K.g4, width:0.75, dashType:'sysDot' } });
+    txt(s, String(it.p), { x:W-M-0.7, y:y+0.04, w:0.7, h:0.30, sz:top?13:11.5, b:top,
+      c:top?K.ink:K.g1, align:'right' });
+    y += top ? CH_H : SUB_H;
+  });
+  guard(BT, y - BT, '목차 목록');
+  return s;
+}
+
 module.exports = { P, K, FONT, TEXT_MIN, W, H, M, CW, BT, BB, Z, col, cx, cw, split, MODE,
-  textW, lines, needH, imgSize, findLogo, createDeck, frame, head, sub, guard, box, txt,
+  textW, lines, needH, PALETTE, imgSize, findLogo, createDeck, frame, head, sub, guard, box, txt,
   underline, hr, logoAt, sectionTitle, kpiRow, table, tableNative, bullets, chevrons, waterfall, tree, matrix,
-  gantt, layers, callout, footnote, pill };
+  gantt, layers, callout, footnote, source, pill, cover, toc };

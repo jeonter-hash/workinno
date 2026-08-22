@@ -32,25 +32,27 @@ A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
 P = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
 
 SLIDE_W, SLIDE_H = 10.8333, 7.5
-ANCHORS = {"챕터": 0.40, "헤드라인": 1.00, "부제": 1.63, "본문": 2.39, "푸터": 7.05}
-BODY_TOP, BODY_BOTTOM, CLEAR_BOTTOM = 2.39, 6.85, 7.05
+ANCHORS = {"챕터": 0.40, "헤드라인": 1.00, "부제": 1.63, "본문": 2.20, "푸터": 7.05}
+BODY_TOP, BODY_BOTTOM, CLEAR_BOTTOM = 2.20, 6.85, 7.05
 TOL = 0.02
 LOGO_H, LOGO_Y, LOGO_RIGHT, LOGO_MAX_W = 0.24, 0.44, SLIDE_W - 0.5, 1.9
 FONT_OK = ("맑은 고딕", "Malgun Gothic")
-MIN_PT = {"present": 9.5, "report": 9.0}
+MIN_PT = {"present": 9.5, "report": 8.5}   # 보고서 dense 모드까지 허용, 8.5pt가 절대 하한
 ASSETS = pathlib.Path(__file__).resolve().parent.parent / "assets"
 
 # 무채색 팔레트 — 이 밖의 색은 유채색이거나 정의되지 않은 회색
 PALETTE = {"111111", "3A3A3A", "6B6B6B", "9E9E9E", "C7C7C7", "E4E4E4",
            "F4F4F4", "FAFAFA", "FFFFFF", "000000", "333333"}
+ACCENT = {"1F3864", "4A6491", "C4303C", "F2E4E6", "E8A0A6"}   # --palette accent 에서만 허용
 TEXT_FLOOR = 0x9E          # 흰 배경 위 글자는 이보다 밝으면 안 된다
 GHOST_LINE = re.compile(r'<a:ln w="12700"><a:solidFill><a:srgbClr val="333333"/>')
 EMOJI = re.compile("[\U0001F300-\U0001FAFF\U00002600-\U000027BF\uFE0F]")
 
 
 class Box:
-    def __init__(self, kind, x, y, w, h, el=None):
+    def __init__(self, kind, x, y, w, h, el=None, text="", filled=False, z=0):
         self.kind, self.x, self.y, self.w, self.h, self.el = kind, x, y, w, h, el
+        self.text, self.filled, self.z = text, filled, z
 
     @property
     def bottom(self):
@@ -97,8 +99,26 @@ def boxes(raw: str, tree):
             if real:
                 h = real
                 tag = "표"
-        out.append(Box(tag, x, y, w, h, el))
+        text = "".join((t.text or "") for t in el.iter(f"{A}t")).strip()
+        fill = el.find(f"{P}spPr/{A}solidFill/{A}srgbClr")
+        filled = fill is not None and fill.get("val", "").upper() != "FFFFFF"
+        geom = el.find(f".//{A}prstGeom")
+        prst = geom.get("prst", "") if geom is not None else ""
+        b = Box(tag, x, y, w, h, el, text, filled, len(out)); b.prst = prst; out.append(b)
     return out
+
+
+def overlaps(a, b):
+    """두 상자가 부분적으로 겹치는가 (한쪽이 다른 쪽을 온전히 담고 있으면 겹침이 아니다)."""
+    ix = min(a.x + a.w, b.x + b.w) - max(a.x, b.x)
+    iy = min(a.y + a.h, b.y + b.h) - max(a.y, b.y)
+    if ix <= 0.02 or iy <= 0.02:
+        return 0.0
+    contains = lambda p, q: (p.x <= q.x + 0.01 and p.y <= q.y + 0.01
+                             and p.x + p.w >= q.x + q.w - 0.01 and p.y + p.h >= q.y + q.h - 0.01)
+    if contains(a, b) or contains(b, a):
+        return 0.0
+    return ix * iy
 
 
 def light(rgb: str) -> float:
@@ -144,9 +164,10 @@ def logo_asset():
     return None
 
 
-def check(path, mode, special, strict):
+def check(path, mode, special, strict, palette='mono'):
     fails, warns = [], []
     min_pt = MIN_PT[mode]
+    allowed_chroma = ACCENT if palette == 'accent' else set()
     asset = logo_asset()
     src_ratio = image_ratio(asset) if asset else None
 
@@ -192,14 +213,19 @@ def check(path, mode, special, strict):
                     elif BODY_BOTTOM + TOL < b.y < CLEAR_BOTTOM - TOL:
                         fails.append(f'{tag} 클리어런스 버퍼(6.85–7.05") 침범: {b}')
                     if 2.03 + TOL < b.y < BODY_TOP - TOL:
-                        fails.append(f'{tag} 부제와 본문 사이(2.03–2.39") 침범: {b}')
+                        fails.append(f'{tag} 부제와 본문 사이(2.03–2.20") 침범: {b}')
 
             # 6 존 앵커
             if not is_special:
                 ys = [b.y for b in bs]
                 missing = [k for k, v in ANCHORS.items() if not any(abs(y - v) <= TOL for y in ys)]
-                if missing:
-                    fails.append(f"{tag} 존 앵커 없음: {', '.join(missing)} — 5존 좌표가 흔들렸다")
+                # 챕터명은 목차 등에서 비울 수 있다 — 경고로만 본다
+                hard = [k for k in missing if k not in ("챕터", "부제")]   # 목차·간지에서는 비울 수 있다
+                if hard:
+                    fails.append(f"{tag} 존 앵커 없음: {', '.join(hard)} — 5존 좌표가 흔들렸다")
+                for k in ("챕터", "부제"):
+                    if k in missing:
+                        warns.append(f"{tag} {k} 없음 (목차·간지면 정상)")
 
             # 7 밀도
             if not is_special:
@@ -212,9 +238,36 @@ def check(path, mode, special, strict):
                         if bot > BODY_BOTTOM - 0.30 * (BODY_BOTTOM - BODY_TOP):
                             bottom_band = True
                 if not bottom_band:
-                    fails.append(f'{tag} 본문 하단 30%(5.51–6.85")가 비었다 — 근거·콜아웃·표로 채울 것')
+                    fails.append(f'{tag} 본문 하단 30%가 비었다 — 근거·콜아웃·표로 채울 것')
+                # 본문 안의 빈 띠 — 요소 사이가 크게 비면 도형·표를 늘려 채운다
+                spans = sorted((max(b.y, BODY_TOP), min(b.bottom, BODY_BOTTOM))
+                               for b in bs if b.bottom > BODY_TOP and b.y < BODY_BOTTOM)
+                cur, gaps = BODY_TOP, []
+                for a0, a1 in spans:
+                    if a0 - cur > 0.001:
+                        gaps.append((cur, a0))
+                    cur = max(cur, a1)
+                if BODY_BOTTOM - cur > 0.001:
+                    gaps.append((cur, BODY_BOTTOM))
+                if gaps:
+                    g0, g1 = max(gaps, key=lambda g: g[1] - g[0])
+                    if g1 - g0 > 0.45:
+                        warns.append(f'{tag} 본문에 빈 띠 {g1-g0:.2f}" ({g0:.2f}–{g1:.2f}") — 도형·표를 늘려 채울 것')
                 elif covered / area < 0.45:
                     warns.append(f"{tag} 본문 점유율 {covered/area:.0%} — 밀도 부족")
+
+            # 7b 요소 겹침 — 나중에 그린 채움 도형이 앞선 글자를 덮는 경우
+            if not is_special:
+                for i, a in enumerate(bs):
+                    if not a.text or a.y < BODY_TOP - 0.1:
+                        continue
+                    for b in bs[i + 1:]:
+                        # 체브론·화살표처럼 서로 물리도록 설계된 도형은 제외 (사각형 계열만 본다)
+                        if not b.filled or b.text or getattr(b, "prst", "") not in ("rect", "roundRect"):
+                            continue
+                        ratio = overlaps(a, b) / max(a.w * a.h, 0.001)
+                        if ratio > 0.30:
+                            fails.append(f"{tag} 글자가 도형에 가림({ratio:.0%}): '{a.text[:18]}' {a} ↔ {b}")
 
             # 8 의도하지 않은 검은 윤곽선
             ghosts = len(GHOST_LINE.findall(raw))
@@ -231,12 +284,14 @@ def check(path, mode, special, strict):
                 if not c:
                     continue
                 if not is_gray(c):
-                    warns.append(f"{tag} 무채색 아닌 글자색 #{c}")
+                    if c not in allowed_chroma:
+                        warns.append(f"{tag} 팔레트 밖 글자색 #{c}")
                 elif light(c) > TEXT_FLOOR * 0.98 and c != "FFFFFF":
                     warns.append(f"{tag} 흐린 글자색 #{c} — 흰 배경이면 #6B6B6B 이상으로 (어두운 배경 위면 무시)")
             for c in set(re.findall(r'<a:srgbClr val="([0-9A-Fa-f]{6})"', raw)):
-                if not is_gray(c.upper()):
-                    warns.append(f"{tag} 무채색 아닌 색 #{c.upper()}")
+                cu = c.upper()
+                if not is_gray(cu) and cu not in allowed_chroma:
+                    warns.append(f"{tag} 팔레트 밖 색 #{cu}")
 
             # 11 로고
             pics = [b for b in bs if b.kind == "pic"]
@@ -300,10 +355,12 @@ def main():
     ap.add_argument("pptx")
     ap.add_argument("--mode", choices=("present", "report"), default="report")
     ap.add_argument("--special", default="", help="검사 제외 장표 번호(표지·디바이더·클로징), 쉼표 구분")
+    ap.add_argument("--palette", choices=("mono", "accent"), default="mono",
+                    help="accent면 KSA 강조 2색(네이비·레드)을 허용한다")
     ap.add_argument("--strict", action="store_true", help="WARN도 실패로 취급")
     a = ap.parse_args()
     special = {int(x) for x in a.special.split(",") if x.strip()}
-    return check(a.pptx, a.mode, special, a.strict)
+    return check(a.pptx, a.mode, special, a.strict, a.palette)
 
 
 if __name__ == "__main__":
