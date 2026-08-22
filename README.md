@@ -18,21 +18,30 @@
 
 파일 조작(unzip → add_slide.py 복제 → XML 텍스트 교체 → zip → validate → 렌더 QA)은 pptx 스킬의 표준 절차를 따른다.
 
-### brandlogy-pptx — 브랜드 PPT (A4 가로 디자인 시스템)
+### PRESENT_PPT — 발표용 PPT (KSA 모노톤)
 
-`.claude/skills/brandlogy-pptx/`
+`.claude/skills/PRESENT_PPT/`
 
-순백 캔버스 · 맑은 고딕 전용 · 브랜드 블루(#1456f0) 체계의 **A4 가로(10.8333" × 7.5")** 브랜드 덱을 만드는 스킬. 로고는 한국표준협회(KSA). 5존 고정 좌표(헤더 0.4" / 헤드라인 1.0" / 부제 1.63" / 본문 2.39–6.85" / 푸터 7.05")와 Hero Gradient 상한, 로고 무결성, 시각화 우선 규칙을 코드로 강제한다.
+A4 가로 · 맑은 고딕 · **흑백 무채색**으로 한 장에 메시지 하나와 도식 하나를 담는 스크린 발표 덱. 헤드라인 24pt · 본문 11.5pt.
+
+### REPORT_PPT — 보고서용 PPT (KSA 모노톤)
+
+`.claude/skills/REPORT_PPT/`
+
+같은 프레임·같은 도식에 밀도만 높인 읽는 문서형 장표. 헤드라인 20pt · 본문 9.5pt · 표 행 0.32", PowerPoint 네이티브 표 기본.
+
+두 스킬은 같은 모듈(`assets/ksa_mono.js`)을 공유한다.
 
 | 파일 | 내용 |
 |---|---|
-| `SKILL.md` | 3대 강제 규칙(존 고정·하드 경계·시각화 우선), 생성 워크플로, 패턴 선택 맵, 토큰 요약, QA 절차, 템플릿 경유 절차 |
-| `references/design-system.md` | 규범 사양 원문 — 색·타이포·컴포넌트·레이아웃·Do/Don't·체크리스트 |
-| `references/layout-geometry.md` | 인치 확정 좌표표 — 5존, 12열 그리드(1열 0.63611"), 패턴 A~F 밴드, 그림자·그라디언트 OOXML, 차트 기본값 |
-| `assets/brandlogy.js` | pptxgenjs 헬퍼 — 존·그리드·밴드 상수, KPI/차트/콜아웃 부품, 경계 침범·그라디언트 초과 시 예외 |
-| `assets/example_deck.js` | 4장 예시(표지·패턴 A·패턴 B·섹션 디바이더) — 복사해 내용만 교체 |
-| `assets/ksa_logo.jpg` | 한국표준협회 워드마크(325×42) — `createDeck()`의 기본 로고 |
-| `scripts/postprocess.py` | Hero Gradient 센티넬 → 벡터 `a:gradFill` 후처리(장표 1 / 덱 3 상한 검사) + 차트 파트 한글 폰트 주입 |
-| `scripts/check_layout.py` | 체크리스트 자동 점검 — A4 판형·존 앵커·하드 경계·맑은 고딕·밀도·로고 위치/비율·로고 뒤 도형·이모지·팔레트 |
+| `SKILL.md` | 밀도, 생성 워크플로, 표준 골격 12장, 도식 선택, QA, 자주 하는 실수 |
+| `INSTALL.md` | 설치·사용 설명서 |
+| `references/design-system.md` | 규범 — 판형(A4 가로)·무채색 팔레트·5존·모드별 밀도·표·선·문안 |
+| `references/components.md` | 컴포넌트 API — 배치·표·도식(체브론·트리·매트릭스·간트·워터폴·계층) |
+| `assets/ksa_mono.js` | 공용 모듈. 본문 벽 침범·표 폭 초과·네이티브 표 자람을 예외로 차단 |
+| `assets/example_deck.js` | 12장 예시(모드별) |
+| `assets/ksa_logo.jpg` | 한국표준협회 워드마크(325×42) |
+| `scripts/postprocess.py` | 차트 결함 보정 — 미선언 축 참조 제거(**미실행 시 PowerPoint 복구 경고**), dPt 순서, 한글 폰트 |
+| `scripts/check_layout.py` | 자동 점검 — 판형·폰트·최소 크기·경계·5존·밀도·검은 윤곽선·흐린 글자·유채색·로고·이모지·차트 구조. **네이티브 표는 `<a:tr h>` 합산으로 실제 높이 계산** |
 
-파일 조작(unzip → add_slide.py → XML 교체 → zip → validate → 렌더 QA)은 pptx 스킬의 표준 절차를 따른다.
+파일 조작은 pptx 스킬의 표준 절차를 따른다.
