@@ -37,10 +37,12 @@ Apple급 프로덕트 마케팅의 명료함 + 둥글고 경쾌한 갤러리 느
 SK=.claude/skills/brandlogy-pptx
 mkdir build && cp $SK/assets/{brandlogy.js,example_deck.js,ksa_logo.jpg} build/
 cd build && node example_deck.js                     # 로고 인자 생략 → 동봉된 ksa_logo.jpg 자동 사용
-python3 ../$SK/scripts/postprocess.py deck.pptx        # 그라디언트 센티넬 → 벡터 gradFill + 차트 한글 폰트
+python3 ../$SK/scripts/postprocess.py deck.pptx        # 필수 — 아래 참조
 python3 ../$SK/scripts/check_layout.py deck.pptx --special 1,5
 python3 /mnt/skills/public/pptx/scripts/office/validate.py deck.pptx
 ```
+
+**`postprocess.py`는 선택이 아니라 필수다.** pptxgenjs 4.x는 차트에 *선언하지도 않은 세 번째 축 id(`<c:axId>`)* 를 써 넣는데, PowerPoint는 없는 축을 가리키는 파일을 열 때 "내용에 문제가 있습니다 / 복구하시겠습니까" 대화상자를 띄운다. LibreOffice는 조용히 무시하므로 렌더 QA로는 드러나지 않는다. postprocess가 이 참조와 `<c:dPt>` 순서 위반을 바로잡고, Hero Gradient 센티넬을 벡터 gradFill로 바꾸고, 차트에 한글 폰트(`<a:ea>`)를 넣는다. `check_layout.py`가 셋 다 검사하므로 빠뜨리면 FAIL로 잡힌다.
 
 `pptxgenjs`는 pptx 스킬 환경에 이미 설치돼 있다(`npm install` 먼저 하지 말 것). pptxgenjs의 함정(색상 `#` 금지, 옵션 객체 재사용 금지, 누적 막대 `dataLabelPosition:'outEnd'` 금지 등)은 pptx 스킬 문서를 그대로 따른다 — 헬퍼가 이미 피해 놓은 것도 많다.
 
@@ -54,7 +56,8 @@ python3 /mnt/skills/public/pptx/scripts/office/validate.py deck.pptx
 | `deck.slide({chapter, source, page})` | 5존 프레임(헤더·로고·페이지·출처)이 박힌 본문 장표 |
 | `headline(s, ...)` / `subtitle(s, ...)` | 700 36pt / 500 16pt, 고정 좌표 |
 | `kpiRow(s, items, {y})` / `kpiCard` | 2–4장 KPI 스트립. `{gradient:true}`로 장표당 1장만 히어로 |
-| `dataCard(s, {...})` → `.area` | 차트 컨테이너(제목·출처 포함). 반환된 `area`에 `addChart` |
+| `dataCard(s, {...})` → `.area` | 차트 컨테이너(제목·출처 포함). 반환된 `area`에 차트를 그린다 |
+| `chart(s, type, data, opts)` | 차트 그리기 — 기본값 적용 + 단일 시리즈 색 고정. `addChart` 대신 이걸 쓴다 |
 | `chartOpts({...})` | 맑은 고딕 축·데이터라벨·브랜드 블루 시리즈 기본값 |
 | `split(n)` / `colX(i)` / `colW(n)` | 12열 그리드 (2·3·4·6 균등 분할) |
 | `h2` `bullets` `soWhat` `pill` `caption` `card` | 본문 부품 |
@@ -97,6 +100,8 @@ python3 /mnt/skills/public/pptx/scripts/thumbnail.py deck.pptx deck-thumbs   # �
 ```
 
 `check_layout.py`는 체크리스트를 기계화한 것이다 — A4 가로 슬라이드 크기, 맑은 고딕 외 폰트, 9pt 미만, 본문 하드 경계·클리어런스 침범, 5존 앵커 이탈, 하단 30% 공백·본문 점유율, Hero Gradient 개수와 센티넬 잔존, Brand Glow 개수, 로고 위치·비율과 **로고 뒤 도형**, 이모지, 팔레트 밖 색상, 차트 부재(경고)를 잡는다. `assets/ksa_logo.*`의 원본 비율과도 대조한다. FAIL이 남은 채로 내보내지 않는다.
+
+**렌더 QA는 반드시 한다.** `soffice --headless --convert-to pdf` → `pdftoppm -png`로 전 장표를 눈으로 본다(LibreOffice에 Impress가 없으면 `apt-get install libreoffice-impress`). 좌표 점검만으로는 글자 넘침·잘림을 못 잡는다.
 
 기계가 못 잡는 것은 눈으로 본다: **헤드라인이 두 줄이 되지 않았는가**(A4 가로 32pt 한 줄은 한글 22자 안팎이 한계 — 넘으면 폰트를 줄이지 말고 문장을 줄인다), 카드 안 텍스트가 넘치는가, 차트 라벨이 겹치는가, 그라디언트와 차트가 같은 장표에서 싸우는가(그러면 차트가 이긴다 — 그라디언트를 다른 장표로).
 

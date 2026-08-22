@@ -42,12 +42,12 @@ const OUT = process.argv[3] || 'example_deck.pptx';
       title: '채널별 세션 추이 (천 세션)',
       source: '출처: 자사 GA4 로그, 채널 정의는 2024년 개편 기준으로 소급 적용',
     });
-    s.addChart('bar', [
+    B.chart(s, 'bar', [
       { name: '브랜드 검색', labels: ['2023', '2024', '2025'], values: [412, 498, 587] },
       { name: '비브랜드 검색', labels: ['2023', '2024', '2025'], values: [880, 842, 809] },
-    ], B.chartOpts({ ...d.area, barDir: 'col', showLegend: true, legendPos: 'b',
+    ], { ...d.area, barDir: 'col', showLegend: true, legendPos: 'b',
       legendFontFace: B.FONT, legendFontSize: 10, legendColor: B.C.sub,
-      chartColors: [B.C.brandBlue, B.C.blue200] }));
+      chartColors: [B.C.brandBlue, B.C.blue200] });
   }
 
   // ── 3. 패턴 B — 2열 비교 + So What
@@ -68,8 +68,8 @@ const OUT = process.argv[3] || 'example_deck.pptx';
 
     const d = B.dataCard(s, { ...Rc, ...band, title: '예산 재배분 시 CAC 변화 (원)',
       source: '출처: 2025년 채널별 CAC에 탄력성 −0.42를 적용한 내부 추정' });
-    s.addChart('bar', [{ name: 'CAC', labels: ['현행', '재배분(안)'], values: [38400, 31100] }],
-      B.chartOpts({ ...d.area, barDir: 'col' }));
+    B.chart(s, 'bar', [{ name: 'CAC', labels: ['현행', '재배분(안)'], values: [38400, 31100] }],
+      { ...d.area, barDir: 'col' });
 
     B.soWhat(s, 'So What — 채널을 늘리는 대신 하위 4개를 정리하고 그 예산을 브랜드 검색·리타게팅에 이관한다.');
   }

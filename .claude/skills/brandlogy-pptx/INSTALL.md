@@ -67,8 +67,8 @@ SK=~/.claude/skills/brandlogy-pptx          # 설치 위치에 맞게
 mkdir build && cp $SK/assets/{brandlogy.js,example_deck.js,ksa_logo.jpg} build/ && cd build
 
 node example_deck.js                         # 예시 4장 생성 (로고 자동 포함)
-python3 $SK/scripts/postprocess.py example_deck.pptx    # 그라디언트 + 차트 한글 폰트
-python3 $SK/scripts/check_layout.py example_deck.pptx   # 디자인 규칙 자동 점검
+python3 $SK/scripts/postprocess.py example_deck.pptx    # 필수 (아래 설명)
+python3 $SK/scripts/check_layout.py example_deck.pptx   # 디자인 규칙 + 파일 구조 점검
 ```
 
 `example_deck.js`를 복사해 내용만 갈아끼우는 방식으로 쓴다. **좌표는 직접 쓰지 않는다** — 헬퍼가 갖고 있다.
@@ -90,12 +90,12 @@ B.kpiRow(s, [                                              // 상단 KPI 4장
 
 const d = B.dataCard(s, { x: B.Z.body.x, y: B.BAND.A.detail.y,   // 하단 차트 컨테이너
   w: B.Z.body.w, h: B.BAND.A.detail.h, title: '채널별 세션 추이', source: '출처: GA4' });
-s.addChart('bar', data, B.chartOpts({ ...d.area, barDir: 'col' }));
+B.chart(s, 'bar', data, { ...d.area, barDir: 'col' });   // addChart 대신 B.chart
 
 await deck.save('deck.pptx');
 ```
 
-주요 함수: `headline` `subtitle` `kpiRow` `dataCard` `chartOpts` `bullets` `h2` `soWhat` `pill` `caption` `card` `cover` `divider` `split(n)`
+주요 함수: `headline` `subtitle` `kpiRow` `dataCard` `chart` `bullets` `h2` `soWhat` `pill` `caption` `card` `cover` `divider` `split(n)`
 
 ---
 
@@ -108,9 +108,11 @@ await deck.save('deck.pptx');
 - Brand Glow 그림자 장표당 2개 이상 → 예외
 - 이모지 → 예외
 
+**`postprocess.py`는 반드시 실행한다.** pptxgenjs 4.x가 차트에 존재하지 않는 축을 참조하는 태그를 써 넣어, 그대로 두면 **PowerPoint가 "내용에 문제가 있습니다 / 복구" 대화상자**를 띄운다. 후처리가 이를 제거하고, 그라디언트를 벡터로 바꾸고, 차트에 한글 폰트를 넣는다.
+
 **만든 뒤 잡는 것** (`check_layout.py`)
 
-A4 판형 · 5존 좌표 이탈 · 맑은 고딕 외 폰트(차트 내부까지) · 9pt 미만 · 본문 경계/푸터 여백 침범 · 하단 30% 공백 · 로고 위치·비율·**로고 뒤 도형** · 팔레트 밖 색상 · 차트 없는 데이터 장표(경고)
+A4 판형 · 5존 좌표 이탈 · **슬라이드 밖 이탈** · 맑은 고딕 외 폰트(차트 내부까지) · 9pt 미만 · 본문 경계/푸터 여백 침범 · 하단 30% 공백 · 로고 위치·비율·**로고 뒤 도형** · 팔레트 밖 색상 · **차트 구조 결함(PowerPoint 복구 대화상자 원인)** · 차트 없는 데이터 장표(경고)
 
 ---
 

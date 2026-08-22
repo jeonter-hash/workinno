@@ -6,7 +6,7 @@
 검사 항목
   1  A4 가로 (10.8333" × 7.5") 슬라이드 크기
   2  맑은 고딕 외 폰트 사용
-  3  본문 하드 경계 침범 (2.39"–6.85"), 클리어런스 버퍼(6.85"–7.05") 침범
+  3  본문 하드 경계 침범 (2.39"–6.85"), 클리어런스 버퍼(6.85"–7.05") 침범, 슬라이드 밖 이탈
   4  5존 앵커 고정 (챕터 0.40 / 헤드라인 1.00 / 부제 1.63 / 본문 2.39 / 푸터 7.05)
   5  본문 밀도 — 하단 30% 밴드 공백, 본문 박스 점유율
   6  Hero Gradient 개수(장표 1 / 덱 3), 센티넬 잔존
@@ -16,6 +16,8 @@
  10  이모지
  11  팔레트 밖 색상 (경고)
  12  차트/도식 없는 본문 장표 (경고 — Visualization-First)
+ 13  차트 구조 결함 — 선언되지 않은 <c:axId>, <c:dPt>/<c:dLbls> 순서 (PowerPoint가 파일을
+     손상으로 보고 복구를 요구하는 원인). postprocess.py를 돌리면 고쳐진다
 
 FAIL이 하나라도 있으면 종료 코드 1. 표지·섹션 디바이더처럼 프레임을 의도적으로
 깨는 장표는 --special 로 번호를 넘기면 존 앵커·밀도 검사를 건너뛴다(전면 도형이
@@ -157,7 +159,12 @@ def check(path, special, strict):
                 if sz_ and int(sz_) < 900:
                     fails.append(f"{tag} 폰트 {int(sz_) / 100:.1f}pt — 최소 9pt")
 
-            # 3 하드 경계
+            # 3 슬라이드 밖 이탈 (판형을 바꿀 때 좌표를 놓치면 여기서 잡힌다)
+            for b in bs:
+                if b.x < -0.01 or b.y < -0.01 or b.x + b.w > SLIDE_W + 0.01 or b.bottom > SLIDE_H + 0.01:
+                    fails.append(f"{tag} 슬라이드 밖으로 나감({SLIDE_W}×{SLIDE_H}\"): {b} → 우측끝 {b.x + b.w:.3f}\" 하단 {b.bottom:.3f}\"")
+
+            # 3b 본문 하드 경계
             for b in bs:
                 if is_special:
                     break
@@ -235,11 +242,27 @@ def check(path, special, strict):
             if not is_special and not any(b.kind == "graphicFrame" for b in bs):
                 warns.append(f"{tag} 차트·표 없음 — 데이터·비교·프로세스를 다루면 시각화할 것(Visualization-First)")
 
-        # 차트 파트 폰트 (슬라이드 XML에는 안 나온다)
+        # 차트 파트 — 폰트와 구조 (슬라이드 XML에는 안 나온다)
         for name in (n for n in z.namelist() if re.fullmatch(r"ppt/charts/chart\d+\.xml", n)):
-            for face in set(re.findall(r'<a:(?:latin|ea|cs) typeface="([^"]+)"', z.read(name).decode("utf-8"))):
+            raw = z.read(name).decode("utf-8")
+            short = name.split("/")[-1]
+            for face in set(re.findall(r'<a:(?:latin|ea|cs) typeface="([^"]+)"', raw)):
                 if not face.startswith(FONT_OK) and not face.startswith("+"):
-                    fails.append(f"[{name.split('/')[-1]}] 맑은 고딕 외 폰트: {face}")
+                    fails.append(f"[{short}] 맑은 고딕 외 폰트: {face}")
+            declared = set()
+            for m in re.finditer(r"<c:(catAx|valAx|serAx|dateAx)>.*?</c:\1>", raw, re.S):
+                declared.update(re.findall(r'<c:axId val="(\d+)"\s*/>', m.group(0)))
+            body = re.sub(r"<c:(catAx|valAx|serAx|dateAx)>.*?</c:\1>", "", raw, flags=re.S)
+            ghost = {i for i in re.findall(r'<c:axId val="(\d+)"\s*/>', body)} - declared
+            if ghost:
+                fails.append(f"[{short}] 선언되지 않은 축 참조 <c:axId val={','.join(sorted(ghost))}> — "
+                             f"PowerPoint가 파일 손상으로 보고 복구를 요구한다. postprocess.py 를 실행할 것")
+            for m in re.finditer(r"<c:ser>.*?</c:ser>", raw, re.S):
+                ser = m.group(0)
+                d = ser.find("<c:dLbls>")
+                if d != -1 and any(p.start() > d for p in re.finditer(r"<c:dPt>", ser)):
+                    fails.append(f"[{short}] <c:dPt>가 <c:dLbls> 뒤에 있다 (ISO 자식 순서 위반) — postprocess.py 를 실행할 것")
+                    break
 
         if grad_total > 3:
             fails.append(f"[deck] Hero Gradient {grad_total}개 — 덱 전체 3개 상한 초과")

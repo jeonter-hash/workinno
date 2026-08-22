@@ -273,9 +273,10 @@ function frame(slide, o = {}) {
     valign: 'middle', align: 'left', margin: 0,
   });
   if (o.source) {
+    const sx = Z.footer.x + 4.2;                       // 페이지번호 상자(4.0") 뒤
     slide.addText(noEmoji(o.source), {
-      ...Z.footer, x: Z.footer.x + 4.333, w: 8.0, ...w(400), fontSize: 9.5, color: C.muted,
-      valign: 'middle', align: 'right', margin: 0,
+      ...Z.footer, x: sx, w: +(Z.footer.x + Z.footer.w - sx).toFixed(4),   // 우측 끝 10.3333"
+      ...w(400), fontSize: 9.5, color: C.muted, valign: 'middle', align: 'right', margin: 0,
     });
   }
   return slide;
@@ -333,16 +334,24 @@ function kpiCard(slide, o) {
   card(slide, { ...o, kind: gradient ? 'gradient' : (o.featured ? 'featured' : 'standard'), what: 'KPI 카드' });
   const numColor = gradient ? C.white : (o.color || C.brandBlue);
   const labColor = gradient ? 'FFFFFF' : C.sub;
-  const numSize = o.valueSize || 36;   // A4 가로 폭(9.83") 기준
+  const innerW = o.w - 2 * pad;
+  const labSize = o.labelSize || 10.5;
+  // 라벨 두 줄까지 카드 안에 들어가도록 자리를 먼저 확보한다
+  const labH = Math.min(0.46, Math.max(0.24, o.h - 2 * pad - 0.5));
+  // 숫자는 폭에 맞춰 상한을 건다 — 좁은 4-up 카드에서 줄바꿈·잘림을 막는다
+  const chars = String(o.value).length;
+  const capByWidth = Math.floor((innerW * 72) / (0.62 * Math.max(chars, 1)));
+  const numSize = Math.min(o.valueSize || 36, capByWidth);
   slide.addText(noEmoji(o.value), {
-    x: o.x + pad, y: o.y + pad, w: o.w - 2 * pad, h: o.h - 2 * pad - 0.26,
+    x: o.x + pad, y: o.y + pad, w: innerW, h: o.h - 2 * pad - labH,
     ...w(700), fontSize: numSize, color: numColor,
     valign: 'bottom', align: 'left', margin: 0, lineSpacingMultiple: 1.1,
+    wrap: false, fit: 'shrink',
   });
   slide.addText(noEmoji(o.label), {
-    x: o.x + pad, y: o.y + o.h - pad - 0.24, w: o.w - 2 * pad, h: 0.24,
-    ...w(500), fontSize: 11.5, color: labColor, transparency: gradient ? 15 : 0,
-    valign: 'middle', align: 'left', margin: 0, lineSpacingMultiple: 1.3,
+    x: o.x + pad, y: o.y + o.h - pad - labH, w: innerW, h: labH,
+    ...w(500), fontSize: labSize, color: labColor, transparency: gradient ? 15 : 0,
+    valign: 'top', align: 'left', margin: 0, lineSpacingMultiple: 1.25, fit: 'shrink',
   });
   return o;
 }
@@ -381,6 +390,7 @@ function dataCard(slide, o) {
 function chartOpts(over = {}) {
   const base = {
     chartColors: [C.brandBlue, C.blue400, C.blue200, C.brandDeep],
+    varyColors: false,          // 데이터 포인트마다 색을 바꾸지 않는다 — 색은 시리즈 구분에만 쓴다
     showLegend: false,
     catAxisLabelFontFace: FONT, catAxisLabelFontSize: 10, catAxisLabelColor: C.sub,
     valAxisLabelFontFace: FONT, valAxisLabelFontSize: 10, valAxisLabelColor: C.sub,
@@ -396,6 +406,19 @@ function chartOpts(over = {}) {
     if (!['ctr', 'inEnd', 'inBase'].includes(o.dataLabelPosition)) o.dataLabelPosition = 'ctr'; // outEnd는 파일을 깨뜨림
   }
   return o;
+}
+
+/**
+ * 차트 그리기 — chartOpts를 적용하고 시리즈 수에 맞게 색을 정리한다.
+ * pptxgenjs는 단일 시리즈일 때 chartColors를 **데이터 포인트마다** 돌려 쓰므로
+ * (varyColors:false를 무시한다) 막대가 제각각 다른 색이 된다. 시리즈가 하나면
+ * 브랜드 블루 한 색으로 고정한다 — 색은 시리즈를 구분할 때만 쓴다.
+ */
+function chart(slide, type, data, o = {}) {
+  const opts = chartOpts(o);
+  if (Array.isArray(data) && data.length === 1 && !o.chartColors) opts.chartColors = [C.brandBlue];
+  slide.addChart(type, data, opts);
+  return opts;
 }
 
 /** 본문 소제목(H2/H3) */
@@ -503,7 +526,7 @@ module.exports = {
   C, Z, GRID, BAND, R, SHADOW, colX, colW, split,
   w, FONT, setWeightMode, assertBody, noEmoji, imageSize, pngSize, logoBox, defaultLogo, LOGO_H,
   createDeck, frame, headline, subtitle,
-  card, kpiCard, kpiRow, dataCard, chartOpts, h2, bullets, soWhat, pill, caption,
+  card, kpiCard, kpiRow, dataCard, chart, chartOpts, h2, bullets, soWhat, pill, caption,
   cover, divider,
   BODY_TOP, BODY_BOTTOM,
 };
