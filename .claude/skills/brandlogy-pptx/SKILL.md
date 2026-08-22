@@ -35,7 +35,7 @@ Apple급 프로덕트 마케팅의 명료함 + 둥글고 경쾌한 갤러리 느
 
 ```bash
 SK=.claude/skills/brandlogy-pptx
-mkdir build && cp $SK/assets/{brandlogy.js,example_deck.js} build/
+mkdir build && cp $SK/assets/{brandlogy.js,example_deck.js,ksa_logo.jpg} build/
 cd build && node example_deck.js                     # 로고 인자 생략 → 동봉된 ksa_logo.jpg 자동 사용
 python3 ../$SK/scripts/postprocess.py deck.pptx        # 그라디언트 센티넬 → 벡터 gradFill + 차트 한글 폰트
 python3 ../$SK/scripts/check_layout.py deck.pptx --special 1,5

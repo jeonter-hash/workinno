@@ -151,12 +151,31 @@ function logoBox(file) {
   return { x: +(SLIDE_W - 0.5 - wd).toFixed(4), y: +(Z.logo.y + (LOGO_H - h) / 2).toFixed(4), w: wd, h };
 }
 
-/** 스킬에 동봉된 한국표준협회 로고 경로 (없으면 null) */
+/**
+ * 동봉된 한국표준협회 로고를 찾는다. 헬퍼를 build 폴더로 복사해 쓰는 워크플로에서도
+ * 로고가 빠지지 않도록 여러 위치를 순서대로 뒤진다. 못 찾으면 null(로고 없이 진행).
+ * 환경변수 KSA_LOGO로 직접 지정할 수도 있다.
+ */
 function defaultLogo() {
-  const path = require('path'), fs = require('fs');
-  for (const name of ['ksa_logo.png', 'ksa_logo.jpg']) {
-    const p = path.join(__dirname, name);
-    if (fs.existsSync(p)) return p;
+  const path = require('path'), fs = require('fs'), os = require('os');
+  const names = ['ksa_logo.png', 'ksa_logo.jpg'];
+  const dirs = [__dirname, path.join(__dirname, 'assets'), process.cwd()];
+  // cwd에서 위로 올라가며 .claude/skills/brandlogy-pptx/assets 를 찾는다
+  let cur = process.cwd();
+  for (let i = 0; i < 6; i++) {
+    dirs.push(path.join(cur, '.claude', 'skills', 'brandlogy-pptx', 'assets'));
+    const up = path.dirname(cur);
+    if (up === cur) break;
+    cur = up;
+  }
+  dirs.push(path.join(os.homedir(), '.claude', 'skills', 'brandlogy-pptx', 'assets'));
+
+  if (process.env.KSA_LOGO && fs.existsSync(process.env.KSA_LOGO)) return process.env.KSA_LOGO;
+  for (const d of dirs) {
+    for (const n of names) {
+      const p = path.join(d, n);
+      try { if (fs.existsSync(p)) return p; } catch (e) { /* 접근 불가 경로는 건너뛴다 */ }
+    }
   }
   return null;
 }
