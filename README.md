@@ -31,6 +31,7 @@
 | `references/layout-geometry.md` | 인치 확정 좌표표 — 5존, 12열 그리드(1열 0.63611"), 패턴 A~F 밴드, 그림자·그라디언트 OOXML, 차트 기본값 |
 | `assets/brandlogy.js` | pptxgenjs 헬퍼 — 존·그리드·밴드 상수, KPI/차트/콜아웃 부품, 경계 침범·그라디언트 초과 시 예외 |
 | `assets/example_deck.js` | 4장 예시(표지·패턴 A·패턴 B·섹션 디바이더) — 복사해 내용만 교체 |
+| `assets/ksa_logo.jpg` | 한국표준협회 워드마크(325×42) — `createDeck()`의 기본 로고 |
 | `scripts/postprocess.py` | Hero Gradient 센티넬 → 벡터 `a:gradFill` 후처리(장표 1 / 덱 3 상한 검사) + 차트 파트 한글 폰트 주입 |
 | `scripts/check_layout.py` | 체크리스트 자동 점검 — A4 판형·존 앵커·하드 경계·맑은 고딕·밀도·로고 위치/비율·로고 뒤 도형·이모지·팔레트 |
 

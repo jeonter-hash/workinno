@@ -8,7 +8,7 @@
 const path = require('path');
 const B = require('./brandlogy.js');
 
-const LOGO = process.argv[2] || null;                 // 한국표준협회(KSA) 누끼 PNG
+const LOGO = process.argv[2] || undefined;            // 생략하면 동봉된 assets/ksa_logo.jpg 사용
 const OUT = process.argv[3] || 'example_deck.pptx';
 
 (async () => {

@@ -38,7 +38,7 @@ TOL = 0.02
 LOGO_H, LOGO_Y, LOGO_RIGHT, LOGO_MAX_W = 0.24, 0.44, SLIDE_W - 0.5, 1.9
 FONT_OK = ("맑은 고딕", "Malgun Gothic")
 # 저장소에 로고 원본이 있으면 그 비율과 대조한다
-LOGO_ASSET = __import__("pathlib").Path(__file__).resolve().parent.parent / "assets" / "ksa_logo.png"
+ASSETS = __import__("pathlib").Path(__file__).resolve().parent.parent / "assets"
 
 PALETTE = {
     "1456F0", "3B82F6", "60A5FA", "BFDBFE", "2563EB", "1D4ED8", "17437D", "3DAEFF",
@@ -88,22 +88,45 @@ def texts(tree):
     return [(t.text or "") for t in tree.iter(f"{A}t")]
 
 
-def png_ratio(p):
-    """PNG 헤더에서 가로/세로 비율 (없으면 None)"""
+def image_ratio(p):
+    """PNG·JPEG 헤더에서 가로/세로 비율 (읽을 수 없으면 None)"""
     try:
-        with open(p, "rb") as f:
-            head = f.read(24)
-        if head[1:4] != b"PNG":
-            return None
-        w, h = int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")
-        return w / h if h else None
+        b = open(p, "rb").read()
     except OSError:
         return None
+    if b[1:4] == b"PNG":
+        w, h = int.from_bytes(b[16:20], "big"), int.from_bytes(b[20:24], "big")
+        return w / h if h else None
+    if b[:2] == b"\xff\xd8":                       # JPEG: SOF 마커
+        i = 2
+        while i < len(b) - 9:
+            if b[i] != 0xFF:
+                i += 1
+                continue
+            m = b[i + 1]
+            if 0xC0 <= m <= 0xCF and m not in (0xC4, 0xC8, 0xCC):
+                h = int.from_bytes(b[i + 5:i + 7], "big")
+                w = int.from_bytes(b[i + 7:i + 9], "big")
+                return w / h if h else None
+            if m in (0xD8, 0xD9) or 0xD0 <= m <= 0xD7:
+                i += 2
+                continue
+            i += 2 + int.from_bytes(b[i + 2:i + 4], "big")
+    return None
+
+
+def logo_asset():
+    for name in ("ksa_logo.png", "ksa_logo.jpg"):
+        p = ASSETS / name
+        if p.exists():
+            return p
+    return None
 
 
 def check(path, special, strict):
     fails, warns = [], []
-    src_ratio = png_ratio(LOGO_ASSET)
+    asset = logo_asset()
+    src_ratio = image_ratio(asset) if asset else None
     with zipfile.ZipFile(path) as z:
         pres = ET.fromstring(z.read("ppt/presentation.xml"))
         sz = pres.find(f"{P}sldSz")

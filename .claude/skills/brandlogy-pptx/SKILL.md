@@ -15,7 +15,7 @@ Apple급 프로덕트 마케팅의 명료함 + 둥글고 경쾌한 갤러리 느
 
 | 확인 | 조치 |
 |---|---|
-| **로고 파일** | `assets/ksa_logo.png`(한국표준협회 누끼 PNG)가 있으면 그것을 쓴다. 없으면 **작업 전에 사용자에게 요청한다** — 로고를 직접 그리거나 다른 로고로 대체하지 않는다. 어두운 배경 장표가 있으면 흰 반전본(`ksa_logo_white.png`)도 함께 받는다 |
+| **로고 파일** | `assets/ksa_logo.jpg`(한국표준협회 "Future Value, Ask KSA" 워드마크, 325×42px)가 동봉돼 있고 `createDeck()`이 **기본값으로 자동 사용**한다. 다른 로고를 쓰라는 지시가 없으면 이 파일을 그대로 쓴다 — 직접 그리거나 다른 로고로 대체하지 않는다. **단 이 파일은 흰 배경 JPEG(누끼 아님)** 이라 흰 장표에서만 안전하다. 어두운 배경·그라디언트 장표에 로고를 넣으려면 투명 PNG나 흰 반전본(`ksa_logo_white.png`)을 사용자에게 받아 `logoWhite`로 넘긴다 |
 | **템플릿** | 표준 템플릿 .pptx가 주어졌으면 §6 템플릿 경로로 간다. 없으면 §2 생성 경로 |
 | **판형** | A4 가로(10.8333"×7.5")만 산출한다. 16:9·4:3·A4 세로 요청은 거절하고 A4 가로로 제안 |
 | **폰트** | 맑은 고딕 외 어떤 패밀리도 쓰지 않는다. 대체 폰트 제안도 하지 않는다 |
@@ -36,7 +36,7 @@ Apple급 프로덕트 마케팅의 명료함 + 둥글고 경쾌한 갤러리 느
 ```bash
 SK=.claude/skills/brandlogy-pptx
 mkdir build && cp $SK/assets/{brandlogy.js,example_deck.js} build/
-cd build && node example_deck.js ../$SK/assets/ksa_logo.png deck.pptx   # example_deck.js를 복사해 내용만 교체
+cd build && node example_deck.js                     # 로고 인자 생략 → 동봉된 ksa_logo.jpg 자동 사용
 python3 ../$SK/scripts/postprocess.py deck.pptx        # 그라디언트 센티넬 → 벡터 gradFill + 차트 한글 폰트
 python3 ../$SK/scripts/check_layout.py deck.pptx --special 1,5
 python3 /mnt/skills/public/pptx/scripts/office/validate.py deck.pptx
@@ -50,7 +50,7 @@ python3 /mnt/skills/public/pptx/scripts/office/validate.py deck.pptx
 
 | 호출 | 용도 |
 |---|---|
-| `createDeck({logo, logoWhite, title, author})` | A4 가로(10.8333×7.5) 레이아웃 + 그라디언트 카운터 |
+| `createDeck({logo, logoWhite, title, author})` | A4 가로(10.8333×7.5) 레이아웃 + 그라디언트 카운터. `logo` 생략 시 동봉된 KSA 로고, `logo: null`이면 로고 없음 |
 | `deck.slide({chapter, source, page})` | 5존 프레임(헤더·로고·페이지·출처)이 박힌 본문 장표 |
 | `headline(s, ...)` / `subtitle(s, ...)` | 700 36pt / 500 16pt, 고정 좌표 |
 | `kpiRow(s, items, {y})` / `kpiCard` | 2–4장 KPI 스트립. `{gradient:true}`로 장표당 1장만 히어로 |
@@ -85,7 +85,7 @@ python3 /mnt/skills/public/pptx/scripts/office/validate.py deck.pptx
 - 카드 radius 13–24px, 버튼 8px, 필 9999px — 직각 모서리 금지
 - 그림자는 Standard가 기본, Brand Glow(#2C1E74 16%)는 **장표당 1개**
 - Hero Gradient `135deg #1456f0 → #3b82f6 → #60a5fa` — 각도·정지점·색 변경 금지, 항상 Brand Glow와 함께, 위 텍스트는 흰색
-- 로고: 우상단, **오른쪽 끝이 10.3333"(우측 0.5" 여백)**, y=0.44", 높이 0.24"에 폭은 원본 비율 자동(헬퍼가 PNG 헤더를 읽어 계산). **원본 그대로** — 배경 박스·밑줄·그림자·보정·크롭·회전은 전부 디펙트
+- 로고: 우상단, **오른쪽 끝이 10.3333"(우측 0.5" 여백)**, y=0.44", 높이 0.24"에 폭은 원본 비율 자동(헬퍼가 PNG·JPEG 헤더를 읽어 계산 — 동봉 로고는 325×42 → 1.857"×0.24"). **원본 그대로** — 배경 박스·밑줄·그림자·보정·크롭·회전은 전부 디펙트
 - 이모지 금지
 
 ## 5. QA (내보내기 전 필수)
@@ -96,7 +96,7 @@ python3 /mnt/skills/public/pptx/scripts/office/validate.py deck.pptx [--original
 python3 /mnt/skills/public/pptx/scripts/thumbnail.py deck.pptx deck-thumbs   # 전 장표 육안 확인
 ```
 
-`check_layout.py`는 체크리스트를 기계화한 것이다 — A4 가로 슬라이드 크기, 맑은 고딕 외 폰트, 9pt 미만, 본문 하드 경계·클리어런스 침범, 5존 앵커 이탈, 하단 30% 공백·본문 점유율, Hero Gradient 개수와 센티넬 잔존, Brand Glow 개수, 로고 위치·비율과 **로고 뒤 도형**, 이모지, 팔레트 밖 색상, 차트 부재(경고)를 잡는다. `assets/ksa_logo.png`가 있으면 그 원본 비율과도 대조한다. FAIL이 남은 채로 내보내지 않는다.
+`check_layout.py`는 체크리스트를 기계화한 것이다 — A4 가로 슬라이드 크기, 맑은 고딕 외 폰트, 9pt 미만, 본문 하드 경계·클리어런스 침범, 5존 앵커 이탈, 하단 30% 공백·본문 점유율, Hero Gradient 개수와 센티넬 잔존, Brand Glow 개수, 로고 위치·비율과 **로고 뒤 도형**, 이모지, 팔레트 밖 색상, 차트 부재(경고)를 잡는다. `assets/ksa_logo.*`의 원본 비율과도 대조한다. FAIL이 남은 채로 내보내지 않는다.
 
 기계가 못 잡는 것은 눈으로 본다: **헤드라인이 두 줄이 되지 않았는가**(A4 가로 32pt 한 줄은 한글 22자 안팎이 한계 — 넘으면 폰트를 줄이지 말고 문장을 줄인다), 카드 안 텍스트가 넘치는가, 차트 라벨이 겹치는가, 그라디언트와 차트가 같은 장표에서 싸우는가(그러면 차트가 이긴다 — 그라디언트를 다른 장표로).
 

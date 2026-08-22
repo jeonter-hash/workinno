@@ -114,18 +114,29 @@ const SHADOW = {
 };
 
 // ─────────────────────────────────────────────────────────── 로고
-/** PNG 헤더에서 픽셀 크기를 읽는다(의존성 없음). 실패하면 null */
-function pngSize(file) {
+/** PNG·JPEG 헤더에서 픽셀 크기를 읽는다(의존성 없음). 실패하면 null */
+function imageSize(file) {
   try {
-    const fs = require('fs');
-    const fd = fs.openSync(file, 'r');
-    const buf = Buffer.alloc(24);
-    fs.readSync(fd, buf, 0, 24, 0);
-    fs.closeSync(fd);
-    if (buf.slice(1, 4).toString() !== 'PNG') return null;
-    return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+    const b = require('fs').readFileSync(file);
+    if (b.slice(1, 4).toString() === 'PNG') {
+      return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };
+    }
+    if (b[0] === 0xff && b[1] === 0xd8) {            // JPEG: SOF 마커에서 크기를 읽는다
+      let i = 2;
+      while (i < b.length - 9) {
+        if (b[i] !== 0xff) { i += 1; continue; }
+        const m = b[i + 1];
+        if (m >= 0xc0 && m <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(m)) {
+          return { w: b.readUInt16BE(i + 7), h: b.readUInt16BE(i + 5) };
+        }
+        if (m === 0xd8 || m === 0xd9 || (m >= 0xd0 && m <= 0xd7)) { i += 2; continue; }
+        i += 2 + b.readUInt16BE(i + 2);
+      }
+    }
+    return null;
   } catch (e) { return null; }
 }
+const pngSize = imageSize;   // 옛 이름 유지
 
 /**
  * 로고 배치 박스. 높이 0.24"에 맞추고 폭은 **원본 비율로 자동 계산**한다
@@ -133,11 +144,21 @@ function pngSize(file) {
  * 아주 가로로 긴 로고는 폭 상한(1.9")에 맞춰 높이를 줄인다. 오른쪽 끝은 항상 0.5" 여백.
  */
 function logoBox(file) {
-  const sz = file ? pngSize(file) : null;
+  const sz = file ? imageSize(file) : null;
   let h = LOGO_H;
   let wd = sz ? +(h * (sz.w / sz.h)).toFixed(4) : Z.logo.w;
   if (wd > LOGO_MAX_W) { h = +(LOGO_MAX_W * (sz.h / sz.w)).toFixed(4); wd = LOGO_MAX_W; }
   return { x: +(SLIDE_W - 0.5 - wd).toFixed(4), y: +(Z.logo.y + (LOGO_H - h) / 2).toFixed(4), w: wd, h };
+}
+
+/** 스킬에 동봉된 한국표준협회 로고 경로 (없으면 null) */
+function defaultLogo() {
+  const path = require('path'), fs = require('fs');
+  for (const name of ['ksa_logo.png', 'ksa_logo.jpg']) {
+    const p = path.join(__dirname, name);
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
 }
 
 // ─────────────────────────────────────────────────────────── 가드레일
@@ -176,7 +197,7 @@ function createDeck(opts = {}) {
 
   const deck = {
     pres, _grad: 0, _page: 0,
-    logo: opts.logo || null,           // 한국표준협회(KSA) 로고 PNG 경로 (누끼, 원본 그대로)
+    logo: opts.logo === undefined ? defaultLogo() : opts.logo,  // 동봉된 KSA 로고를 기본값으로 (원본 그대로)
     logoWhite: opts.logoWhite || null, // 어두운 배경용 흰 변형(균일 반전본)
 
     /** 표준 5존 프레임이 적용된 본문 장표 */
@@ -226,7 +247,7 @@ function frame(slide, o = {}) {
   }
   if (deck.logo) {
     // 원본 그대로 — 배경/테두리/그림자/보정 금지. 폭은 원본 비율로 자동 계산한다
-    slide.addImage({ path: deck.logo, ...logoBox(deck.logo) });
+    slide.addImage({ path: deck.logo, ...logoBox(deck.logo), altText: '한국표준협회 로고' });
   }
   slide.addText(String(o.page == null ? slide._page : o.page), {
     ...Z.footer, w: 4.0, ...w(500), fontSize: 10, color: C.muted,
@@ -441,7 +462,7 @@ function divider(deck, o) {
     s.addText(noEmoji(o.number), { ...Z.chapter, ...w(600), fontSize: 14, color: C.white, transparency: 40,
       valign: 'middle', align: 'left', margin: 0 });
   }
-  if (deck.logoWhite) s.addImage({ path: deck.logoWhite, ...logoBox(deck.logoWhite) });
+  if (deck.logoWhite) s.addImage({ path: deck.logoWhite, ...logoBox(deck.logoWhite), altText: '한국표준협회 로고' });
   s.addText(noEmoji(o.title), { x: 0.5, y: 3.0, w: 9.8333, h: 1.1, ...w(700), fontSize: 48, color: C.white,
     valign: 'bottom', align: 'left', margin: 0, lineSpacingMultiple: 1.15, charSpacing: -1.2 });
   if (o.lead) {
@@ -461,7 +482,7 @@ function slide_text(slide, text, box, style) {
 module.exports = {
   PptxGenJS, SLIDE_W, SLIDE_H, px, pxPt, inPt,
   C, Z, GRID, BAND, R, SHADOW, colX, colW, split,
-  w, FONT, setWeightMode, assertBody, noEmoji, pngSize, logoBox, LOGO_H,
+  w, FONT, setWeightMode, assertBody, noEmoji, imageSize, pngSize, logoBox, defaultLogo, LOGO_H,
   createDeck, frame, headline, subtitle,
   card, kpiCard, kpiRow, dataCard, chartOpts, h2, bullets, soWhat, pill, caption,
   cover, divider,
