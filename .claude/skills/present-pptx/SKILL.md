@@ -87,8 +87,18 @@ description: KSA 하우스 스타일의 발표용 PPT(제안발표·심사PT·�
 2. **패턴 매핑**: 장표마다 P번호를 배정한다. 근거 데이터가 없는 차트·수치는 만들지 않는다(가짜 수치 금지) — 수치 없는 주제는 카드·프로세스형 패턴으로.
 3. **조립**: patterns.pptx를 언팩 → 필요한 패턴을 add_slide.py로 복제·배열 → 안 쓰는 원본 슬라이드는 sldIdLst에서 제거 → clean.py.
 4. **내용 교체**: 브레드크럼·헤드라인·라벨·리드문·본문·요약 밴드 순으로 교체. 템플릿 슬롯 수와 실제 항목 수가 다르면 남는 그룹(도형+텍스트)이나 표 행·열을 통째로 삭제한다(카탈로그의 가감법 참조). **원본의 KSA·G-DAX 고유 문구, 인명·직책, 기관 로고·스크린샷 이미지가 남지 않도록** 전수 교체·삭제한다.
+
+   **XML 삽입 순서 규칙 — 어기면 PowerPoint가 "파일 손상, 복구" 프롬프트를 띄운다** (LibreOffice·validate.py는 통과하므로 QA에서 안 잡힌다):
+   - 새 런(`<a:r>`)은 반드시 `<a:endParaRPr>` **앞**에 넣는다. 빈 문단(pPr+endParaRPr만 있는 문단, 특히 표 헤더 셀)에 텍스트를 넣을 때 endParaRPr 뒤에 붙이는 실수가 가장 흔하다.
+   - `<a:rPr>`·`<a:defRPr>`·`<a:endParaRPr>`의 자식은 스키마 순서를 지킨다: `ln → (no|solid|grad|blip|patt|grp)Fill → effectLst → highlight → uLn계 → uFill계 → latin → ea → cs → sym → hlink계 → extLst`. 색을 바꾸려고 `<a:solidFill>`을 `<a:latin>` 뒤에 붙이면 위반이다.
+   - 표 행(`<a:tr>`)에 셀을 추가할 때 새 `<a:tc>`는 `<a:extLst>` **앞**에 넣는다.
 5. **문서 속성**: 작성자·최종 저장자 = 사용자 지정값(기본 "전봉관"), 제목 = 발표명. 산출 파일에 도구 흔적(python-pptx 등)을 남기지 않는다.
-6. **QA**: pptx 스킬의 QA 절차(렌더 → 전 장표 육안 → validate.py `--original assets/patterns.pptx`). §7의 렌더 특성을 먼저 읽을 것.
+6. **QA**: 압축 전에 반드시 두 스크립트를 실행한다:
+   ```bash
+   python scripts/fix_order.py <unpacked>/        # 4번 순서 규칙 위반 자동 교정 (0건이어야 정상)
+   python scripts/strip_thinkcell.py in.pptx out.pptx   # think-cell 잔재·공유 파트·협업 흔적 제거 (완성본에 1회)
+   ```
+   fix_order.py가 0건이 아니면 교체 로직이 순서 규칙을 어긴 것이니 원인을 고친다. 이후 pptx 스킬의 QA 절차(렌더 → 전 장표 육안 → validate.py `--original assets/patterns.pptx`). validate.py 통과가 PowerPoint 통과를 보장하지 않음을 기억할 것 — 순서 위반은 fix_order.py만 잡는다. §7의 렌더 특성을 먼저 읽을 것.
 
 ## 7. QA 시 렌더 특성 (오탐 주의)
 
