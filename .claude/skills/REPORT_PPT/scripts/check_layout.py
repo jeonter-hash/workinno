@@ -17,6 +17,8 @@
   11  로고 위치·비율·로고 뒤 도형
   12  이모지
   13  차트 구조 결함 — 미선언 <c:axId>, <c:dPt>/<c:dLbls> 순서 (PowerPoint 복구 대화상자 원인)
+  14  각주 과다 · 결론 밴드 남용 — 잔글씨 3줄 이상, 결론 밴드가 본문 장표 60% 초과
+  15  문안 — 이중 피동·번역투·공문 축약형 등 걷어낼 표현
 
 FAIL이 하나라도 있으면 종료 코드 1. 표지·디바이더·클로징은 --special 로 제외한다.
 """
@@ -104,7 +106,9 @@ def boxes(raw: str, tree):
         filled = fill is not None and fill.get("val", "").upper() != "FFFFFF"
         geom = el.find(f".//{A}prstGeom")
         prst = geom.get("prst", "") if geom is not None else ""
-        b = Box(tag, x, y, w, h, el, text, filled, len(out)); b.prst = prst; out.append(b)
+        b = Box(tag, x, y, w, h, el, text, filled, len(out)); b.prst = prst
+        b.fillc = fill.get("val", "").upper() if fill is not None else ""
+        out.append(b)
     return out
 
 
@@ -156,6 +160,48 @@ def image_ratio(p):
     return None
 
 
+# ── 잔글씨(각주·출처)와 결론 밴드 판별 ────────────────────────
+FOOT_MAX_PT = 950          # 9.5pt 이하 + 회색이면 각주·출처로 본다
+FOOT_GRAY = {"6B6B6B", "9E9E9E"}
+FOOT_RE = re.compile(r"^\s*(?:주\s*\d|주\)|출처|자료|단위|※|\*)")
+
+
+def small_gray_texts(tree):
+    """표 아래 잔글씨(각주·출처) 줄 목록."""
+    out = []
+    for sp in tree.iter(f"{P}sp"):
+        szs = [int(r.get("sz")) for r in sp.iter(f"{A}rPr") if r.get("sz")]
+        cols = {c.get("val", "").upper() for c in sp.iter(f"{A}srgbClr")}
+        t = "".join((x.text or "") for x in sp.iter(f"{A}t")).strip()
+        if t and szs and max(szs) <= FOOT_MAX_PT and cols and cols <= FOOT_GRAY and FOOT_RE.match(t):
+            out.append(t)
+    return out
+
+
+def has_callout(bs):
+    """결론 밴드(가로로 긴 채움 띠 + 글자)가 있는가."""
+    for b in bs:
+        if (b.kind == "sp" and b.text and getattr(b, "prst", "") in ("rect", "roundRect")
+                and getattr(b, "fillc", "") in CALLOUT_FILL and b.w > 3.0 and b.h <= 0.95):
+            return True
+    return False
+
+
+CALLOUT_FILL = {"F4F4F4", "111111", "1F3864", "C4303C"}
+
+# ── 문안 규칙 — 컨설턴트 문투에서 걷어낼 표현 ──────────────────
+BAD_PHRASE = [
+    (re.compile(r"되어지|하여지|불려지|보여지"), "이중 피동 — '~된다'로 쓸 것"),
+    (re.compile(r"것으로 (?:판단|사료|보여|예상)됨"), "번역투 상투구 — 판단을 그대로 쓸 것"),
+    (re.compile(r"니즈"), "외래어 — '요구'로"),
+    (re.compile(r"제고(?!율)"), "관공서 한자어 — '높임'으로"),
+    (re.compile(r"[가-힣] 시 (?=[가-힣])"), "'~ 시' 축약 — '~하면'으로 풀 것"),
+    (re.compile(r"지양 필요|필요성 존재|요구됨|필요함(?![니다])"), "근거 없는 당위 — 근거와 함께 쓸 것"),
+    (re.compile(r"대폭|획기적|전방위적|비약적"), "수치 없는 평가어 — 숫자로 대체할 것"),
+    (re.compile(r"을 통한 도출|를 통한 도출|등을 통한"), "명사 나열 — 동사로 풀 것"),
+]
+
+
 def logo_asset():
     for name in ("ksa_logo.png", "ksa_logo.jpg"):
         p = ASSETS / name
@@ -166,6 +212,7 @@ def logo_asset():
 
 def check(path, mode, special, strict, palette='mono'):
     fails, warns = [], []
+    body_slides, callout_slides = [], []
     min_pt = MIN_PT[mode]
     allowed_chroma = ACCENT if palette == 'accent' else set()
     asset = logo_asset()
@@ -268,6 +315,13 @@ def check(path, mode, special, strict, palette='mono'):
                         ratio = overlaps(a, b) / max(a.w * a.h, 0.001)
                         if ratio > 0.30:
                             fails.append(f"{tag} 글자가 도형에 가림({ratio:.0%}): '{a.text[:18]}' {a} ↔ {b}")
+                # 네이티브 표는 글상자가 아니라 graphicFrame이라 위 규칙에 걸리지 않는다 — 따로 본다
+                for t in (x for x in bs if x.kind == "표"):
+                    for b in bs:
+                        if b is t or not b.filled or getattr(b, "prst", "") not in ("rect", "roundRect"):
+                            continue
+                        if overlaps(t, b) > 0.05:
+                            fails.append(f"{tag} 표가 도형과 겹침: {t} ↔ {b} — 표 반환값 bottom으로 다음 y를 잡을 것")
 
             # 8 의도하지 않은 검은 윤곽선
             ghosts = len(GHOST_LINE.findall(raw))
@@ -316,6 +370,25 @@ def check(path, mode, special, strict, palette='mono'):
                 if t.text and EMOJI.search(t.text):
                     fails.append(f"{tag} 이모지 사용: {t.text[:24]}")
 
+            # 14 각주 과다 — 단위·출처는 한 줄로 합치고, 각주는 오독 위험이 있을 때만
+            if not is_special:
+                foot = small_gray_texts(tree)
+                if len(foot) >= 3:
+                    warns.append(f"{tag} 표 아래 잔글씨 {len(foot)}줄 — 단위·출처는 한 줄로 합치고, "
+                                 f"각주는 수치가 오독될 때만 남길 것: {' / '.join(f[:20] for f in foot[:3])}")
+                if has_callout(bs):
+                    callout_slides.append(n)
+                body_slides.append(n)
+
+            # 15 문안 — 걷어낼 표현
+            # 문단 단위로 이어 붙인다 — 런 경계에 공백을 넣으면 '정합 시간'이 '~ 시'로 오탐된다
+            paras = ["".join((t.text or "") for t in para.iter(f"{A}t"))
+                     for para in tree.iter(f"{A}p")]
+            for pat, why in BAD_PHRASE:
+                hit = next((pat.search(x) for x in paras if pat.search(x)), None)
+                if hit:
+                    warns.append(f"{tag} 문안: '{hit.group(0).strip()}' — {why}")
+
         # 13 차트 파트
         for name in (n for n in z.namelist() if re.fullmatch(r"ppt/charts/chart\d+\.xml", n)):
             raw = z.read(name).decode("utf-8")
@@ -337,6 +410,11 @@ def check(path, mode, special, strict, palette='mono'):
                 if d != -1 and any(p.start() > d for p in re.finditer(r"<c:dPt>", ser)):
                     fails.append(f"[{short}] <c:dPt>가 <c:dLbls> 뒤에 있다 (ISO 순서 위반) — postprocess.py 를 실행할 것")
                     break
+
+    # 14b 결론 밴드 남용 — 장(章)의 마지막 장표에만 다는 것이 원칙
+    if len(body_slides) >= 4 and len(callout_slides) > 0.6 * len(body_slides):
+        warns.append(f"[deck] 결론 밴드가 본문 {len(body_slides)}장 중 {len(callout_slides)}장에 붙어 있다 — "
+                     f"장(章)의 마지막 장표에만 달 것 (현재: {', '.join(str(x) for x in callout_slides)})")
 
     dedup = lambda xs: list(dict.fromkeys(xs))
     fails, warns = dedup(fails), dedup(warns)

@@ -388,6 +388,51 @@ function layers(s, o){          // 3단 계층(교육체계 등)
     txt(s,it.d,{ x:x+w*0.34, y:o.y+i*h, w:w*0.64, h:h-0.06, sz:T.small, c:i===2?K.g1:K.g5, valign:'middle', lh:1.2 });
   });
 }
+/**
+ * 패널 — 제목 박스. 제목은 **좌우 가운데 정렬**하고 얇은 밑줄을 둔 뒤,
+ * 본문 항목을 박스 높이에 맞춰 **고르게 분산**해 아래가 비지 않게 한다.
+ *   items: ['항목', {t:'항목', sub:'딸린 설명'}]
+ */
+function panel(s, o){
+  const T=s._T, pad=o.pad==null?T.pad:o.pad;
+  box(s,{ x:o.x, y:o.y, w:o.w, h:o.h, fill:o.fill||K.w, line:o.line||K.g4, what:'패널' });
+  const innerW = o.w - 2*pad;
+  let top = o.y + pad;
+  if (o.title){
+    txt(s, o.title, { x:o.x+pad, y:top, w:innerW, h:0.30, sz:o.titleSize||T.h2, b:true,
+      align:'center', valign:'middle' });                     // 제목은 가운데 정렬
+    hr(s, { x:o.x+pad, y:top+0.34, w:innerW, color:K.g4 });
+    top += 0.46;
+  }
+  const items = (o.items||[]).map(it => typeof it==='string' ? {t:it} : it);
+  if (!items.length) return;
+  const sz = o.sz || T.body, lh = o.lh || T.lh, subSz = o.subSz || Math.max(8.5, sz-0.5);
+  const lineH = sz*lh/72, subH = subSz*lh/72;
+  // 각 항목이 차지할 실제 높이
+  const heights = items.map(it =>
+    lines(it.t, sz, innerW-0.22)*lineH + (it.sub ? lines(it.sub, subSz, innerW-0.40)*subH : 0));
+  const used = heights.reduce((a,b)=>a+b,0);
+  const room = (o.y + o.h - pad) - top;
+  if (used > room + 0.005)
+    throw new Error(`패널 '${o.title||''}' 안의 글(${used.toFixed(2)}")이 남은 높이 ${room.toFixed(2)}"를 넘는다`
+      + ` — 높이를 ${(o.h + used - room).toFixed(2)}"로 키우거나 항목을 줄일 것`);
+  // 남는 자리를 항목 사이에 고르게 나눠 박스를 채운다 (과하게 벌어지지 않게 상한)
+  const gap = items.length>1 ? Math.max(0.02, Math.min((room-used)/(items.length-1), lineH*1.6)) : 0;
+  let y = top + Math.max(0, (room - used - gap*(items.length-1))/2);
+  items.forEach(it => {
+    const hT = lines(it.t, sz, innerW-0.22)*lineH;
+    txt(s, '–', { x:o.x+pad, y, w:0.16, h:hT, sz, c:K.g2 });
+    txt(s, it.t, { x:o.x+pad+0.22, y, w:innerW-0.22, h:hT, sz, lh });
+    y += hT;
+    if (it.sub){
+      const hS = lines(it.sub, subSz, innerW-0.40)*subH;
+      txt(s, it.sub, { x:o.x+pad+0.40, y, w:innerW-0.40, h:hS, sz:subSz, c:K.g2, lh });
+      y += hS;
+    }
+    y += gap;
+  });
+}
+
 function callout(s, t, o){
   const T=s._T;
   const cc = o.acc ? s._C.acc : s._C.dark;
@@ -468,4 +513,4 @@ function toc(deck, o){
 module.exports = { P, K, FONT, TEXT_MIN, W, H, M, CW, BT, BB, Z, col, cx, cw, split, MODE,
   textW, lines, needH, PALETTE, imgSize, findLogo, createDeck, frame, head, sub, guard, box, txt,
   underline, hr, logoAt, sectionTitle, kpiRow, table, tableNative, bullets, chevrons, waterfall, tree, matrix,
-  gantt, layers, callout, footnote, source, pill, cover, toc };
+  gantt, layers, callout, panel, footnote, source, pill, cover, toc };
