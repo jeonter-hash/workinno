@@ -40,8 +40,19 @@ ZONE = {
     "report":  {"챕터": 0.40, "타이틀": 0.94, "메시지": 1.37, "본문": 2.00, "푸터": 7.05},
 }
 BODY_BOTTOM, CLEAR_BOTTOM = 6.85, 7.05
-# 헤드 메시지 종결 — 명사형 개조식. 서술체·의문형은 헤드에 쓰지 않는다
-MSG_END = re.compile(r"(함|임|음|됨|짐|필요|시급|불가피|전망)\s*$")
+# 헤드 메시지 종결 — 명사형 개조식(받침 ㅁ). 서술체·의문형은 헤드에 쓰지 않는다.
+# 함·임·됨 만 나열하면 '나타냄'·'구성됨'·'가려냄' 같은 정상 종결을 오탐한다.
+JONG_M = 16          # 한글 종성 표에서 ㅁ의 자리
+
+
+def ends_nominal(msg: str) -> bool:
+    t = msg.rstrip(" .·)]}\u3000")
+    if not t:
+        return False
+    c = ord(t[-1])
+    if not (0xAC00 <= c <= 0xD7A3):
+        return False
+    return (c - 0xAC00) % 28 == JONG_M
 MSG_LINE = {"present": 54, "report": 59}      # 한 줄에 들어가는 한글 글자 수
 TITLE_MAX = 30
 TOL = 0.02
@@ -309,7 +320,7 @@ def check(path, mode, special, strict, palette='mono'):
                         warns.append(f"{tag} 헤드 타이틀에 대분류가 붙어 있다 — 챕터에 있으므로 뺄 것: '{t[:34]}'")
                 for b in msgs:
                     m = b.text
-                    if not MSG_END.search(m):
+                    if not ends_nominal(m):
                         fails.append(f"{tag} 헤드 메시지가 명사형으로 끝나지 않는다 — '{m[-14:]}'")
                     est = -(-len(m) // MSG_LINE[mode])
                     if est > 2:

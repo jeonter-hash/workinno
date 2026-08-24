@@ -110,6 +110,26 @@ B.panel(s, { x:B.cx(0), y:2.46, w:B.cw(6), h:1.86, title:'추진 배경', items:
 | `pill(s, t, {x,y,w,h,dark})` | 태그 |
 | `footnote(s, t, {x,y,w})` | 각주 — 오독 위험이 있을 때만 |
 
+## 관계 도식
+
+모두 무채색이며 그라데이션·3D·베벨을 쓰지 않는다. 겹침과 명도, 채운 몫으로만 뜻을 만든다.
+모두 `{ bottom }`을 돌려주므로 그 값으로 다음 요소의 y를 잡는다.
+
+| 호출 | 설명 |
+|---|---|
+| `venn(s, {x,y,w,h,items,center})` | 벤. 영역 2~3개. 원을 반투명으로 겹쳐 교집합이 저절로 진해진다. 이름은 원 바깥에 붙는다 |
+| `hubSpoke(s, {x,y,w,h,hub,items})` | 허브&스포크. 위성 3~8개 |
+| `cycle(s, {x,y,w,h,items,hi,center})` | 순환. 단계 3~6개. 이웃끼리 회전 화살표로 잇는다. `hi`로 한 단계를 반전 |
+| `pyramid(s, {x,y,w,h,items,notes,noteW})` | 피라미드. 2~5층, 위→아래 순서. 위로 갈수록 진해진다 |
+| `steps(s, {x,y,w,h,items})` | 계단. 3~6단. `items[i] = {t, v, d}` (이름·수치·설명) |
+| `harvey(s, {x,y,w,cols,rows,firstW})` | 하비볼 평가표. `rows[i] = {t, v:[0..4]}`. 범례가 자동으로 붙는다 |
+| `harveyBall(s, {x,y,d,v})` | 하비볼 하나. `x,y`는 **중심** |
+| `causeEffect(s, {x,y,w,h,rows})` | 원인→결과. 1~4행. `rows[i] = {cause, effect, note}` |
+| `onTone(hex)` | 그 배경에 얹을 글자색(흰/먹)을 돌려준다 |
+
+**피라미드와 하비볼은 `postprocess.py`가 도형의 조절점을 보정해야 제 모양이 된다.**
+pptxgenjs가 사다리꼴 기울기와 부채꼴 각도를 넘기지 못하므로 도형 이름에 값을 실어 보낸다.
+
 ## 차트
 
 무채색이므로 **계열을 명도로만 구분하고 5개까지**다. 넘으면 예외를 던진다.

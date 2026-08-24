@@ -480,6 +480,296 @@ function comboChart(s, o){
 /** 차트 아래 단위·출처 한 줄 */
 const chartNote = (s, t, o) => footnote(s, t, { x:o.x, y:o.y, w:o.w });
 
+/** 배경 명도에 맞는 글자색 — 밝은 회색 위에 흰 글자를 얹지 않는다 */
+function onTone(hex){
+  const r=parseInt(hex.slice(0,2),16), g=parseInt(hex.slice(2,4),16), b=parseInt(hex.slice(4,6),16);
+  return (r*0.299 + g*0.587 + b*0.114) < 140 ? K.w : K.ink;
+}
+
+/* ── 관계 도식 ───────────────────────────────────────────
+ * 모두 무채색이며 그라데이션·3D·베벨을 쓰지 않는다. 겹침과 명도만으로 뜻을 만든다.
+ * 각 함수는 { bottom }을 돌려주므로 그 값으로 다음 요소의 y를 잡는다.
+ */
+
+/** 벤 — 집합·그룹·공통. 원을 반투명으로 겹쳐 교집합이 저절로 진해지게 한다.
+ *   items: ['영역 A','영역 B','영역 C']  (2개 또는 3개)
+ *   center: 교집합에 넣을 말 (선택)
+ */
+function venn(s, o){
+  const T = s._T, items = o.items;
+  if (items.length < 2 || items.length > 3) throw new Error('벤 다이어그램은 2개 또는 3개 영역만');
+  guard(s, o.y, o.h, '벤');
+  const r = o.r || Math.min(o.h*0.36, o.w*0.22);
+  const cxm = o.x + o.w/2, cym = o.y + o.h*0.47, d = r*0.62;
+  const at = items.length === 3 ? [-90, 30, 150] : [180, 0];
+  const pos = at.map(a => ({ x:cxm + d*Math.cos(a*Math.PI/180) * (items.length===2?0.85:1),
+                             y:cym + d*Math.sin(a*Math.PI/180) }));
+  pos.forEach(pt => s.addShape('ellipse', { x:+(pt.x-r).toFixed(4), y:+(pt.y-r).toFixed(4), w:r*2, h:r*2,
+    fill:{ color:K.ink, transparency:80 }, line:{ color:K.g3, width:0.75 } }));
+  // 영역 이름은 원 바깥으로 빼서 교집합 글자와 겹치지 않게 한다
+  items.forEach((t, i) => {
+    const a = at[i]*Math.PI/180, off = d + r*1.16;   // 원 테두리 밖으로 밀어 겹치지 않게 한다
+    const lx = cxm + off*Math.cos(a), ly = cym + off*Math.sin(a);
+    const w = 1.9;
+    txt(s, t, { x:+(lx - w/2).toFixed(4), y:+(ly - 0.16).toFixed(4), w, h:0.32,
+      sz:o.sz||T.body, b:true, align:'center', valign:'middle' });
+  });
+  if (o.center)
+    txt(s, o.center, { x:+(cxm-1.0).toFixed(4), y:+(cym-0.16).toFixed(4), w:2.0, h:0.32,
+      sz:o.sz||T.body, b:true, c:K.w, align:'center', valign:'middle' });
+  return { bottom:+(o.y+o.h).toFixed(3) };
+}
+
+/** 허브&스포크 — 분석. 가운데 요인 하나에 주변 요소를 붙인다.
+ *   hub: '중심', items: ['요소1', … ]  (3~8개)
+ */
+function hubSpoke(s, o){
+  const T = s._T, n = o.items.length;
+  if (n < 3 || n > 8) throw new Error('허브&스포크는 요소 3~8개');
+  guard(s, o.y, o.h, '허브&스포크');
+  const cxm = o.x + o.w/2, cym = o.y + o.h/2;
+  const R = Math.min(o.h*0.33, o.w*0.20);          // 위성 중심까지 거리
+  const hr = o.hubR || Math.min(0.48, R*0.62);     // 허브 반지름
+  const sr = o.spokeR || hr*0.78;                  // 위성 반지름
+  for (let i=0;i<n;i++){
+    const a = (-90 + i*360/n) * Math.PI/180;
+    const px = cxm + R*Math.cos(a), py = cym + R*Math.sin(a);
+    const L = Math.hypot(px-cxm, py-cym) - hr - sr;
+    if (L > 0.02){                                  // 허브와 위성을 잇는 선
+      const mx = cxm + (hr + L/2)*Math.cos(a), my = cym + (hr + L/2)*Math.sin(a);
+      s.addShape('line', { x:+(mx-L/2).toFixed(4), y:+my.toFixed(4), w:+L.toFixed(4), h:0,
+        rotate:+( -90 + i*360/n ).toFixed(2), line:{ color:K.g3, width:0.75 } });
+    }
+    s.addShape('ellipse', { x:+(px-sr).toFixed(4), y:+(py-sr).toFixed(4), w:sr*2, h:sr*2,
+      fill:{ color:K.g6 }, line:{ color:K.g3, width:0.75 } });
+    txt(s, o.items[i], { x:+(px-sr).toFixed(4), y:+(py-sr).toFixed(4), w:sr*2, h:sr*2,
+      sz:o.sz||T.small, align:'center', valign:'middle', lh:1.15 });
+  }
+  s.addShape('ellipse', { x:+(cxm-hr).toFixed(4), y:+(cym-hr).toFixed(4), w:hr*2, h:hr*2,
+    fill:{ color:s._C.dark }, line:{ type:'none' } });
+  txt(s, o.hub, { x:+(cxm-hr).toFixed(4), y:+(cym-hr).toFixed(4), w:hr*2, h:hr*2,
+    sz:o.hubSz||T.body, b:true, c:K.w, align:'center', valign:'middle', lh:1.15 });
+  return { bottom:+(o.y+o.h).toFixed(3) };
+}
+
+/** 순환 — 반복되는 고리. 원 위에 단계를 놓고 이웃끼리 화살표로 잇는다.
+ *   items: ['단계1', … ]  (3~6개)
+ */
+function cycle(s, o){
+  const T = s._T, n = o.items.length;
+  if (n < 3 || n > 6) throw new Error('순환 도식은 단계 3~6개');
+  guard(s, o.y, o.h, '순환');
+  const cxm = o.x + o.w/2, cym = o.y + o.h/2;
+  const R = Math.min(o.h*0.34, o.w*0.21);
+  const nr = o.nodeR || Math.min(0.56, R*0.70);
+  const pts = Array.from({length:n}, (_,i) => {
+    const a = (-90 + i*360/n) * Math.PI/180;
+    return { x:cxm + R*Math.cos(a), y:cym + R*Math.sin(a) };
+  });
+  for (let i=0;i<n;i++){                            // 이웃을 잇는 화살표
+    const a = pts[i], b = pts[(i+1)%n];
+    const dx = b.x-a.x, dy = b.y-a.y, dist = Math.hypot(dx,dy);
+    const L = dist - nr*2 - 0.10;
+    if (L <= 0.05) continue;
+    const mx = (a.x+b.x)/2, my = (a.y+b.y)/2, ah = o.arrowH || 0.16;
+    s.addShape('rightArrow', { x:+(mx-L/2).toFixed(4), y:+(my-ah/2).toFixed(4), w:+L.toFixed(4), h:ah,
+      rotate:+(Math.atan2(dy,dx)*180/Math.PI).toFixed(2),
+      fill:{ color:K.g4 }, line:{ type:'none' } });
+  }
+  pts.forEach((pt,i) => {
+    const dark = o.hi === i;
+    s.addShape('ellipse', { x:+(pt.x-nr).toFixed(4), y:+(pt.y-nr).toFixed(4), w:nr*2, h:nr*2,
+      fill:{ color:dark ? s._C.dark : K.g6 }, line:{ color:dark ? s._C.dark : K.g3, width:0.75 } });
+    txt(s, o.items[i], { x:+(pt.x-nr).toFixed(4), y:+(pt.y-nr).toFixed(4), w:nr*2, h:nr*2,
+      sz:o.sz||T.small, b:true, c:dark?K.w:K.ink, align:'center', valign:'middle', lh:1.15 });
+  });
+  if (o.center)
+    txt(s, o.center, { x:+(cxm-R*0.62).toFixed(4), y:+(cym-0.20).toFixed(4), w:R*1.24, h:0.40,
+      sz:o.centerSz||T.body, b:true, c:K.g2, align:'center', valign:'middle' });
+  return { bottom:+(o.y+o.h).toFixed(3) };
+}
+
+/** 피라미드 — 기반·기초·삼위일체. 위로 갈수록 좁아지고 진해진다.
+ *   items: ['최상위','중간','기반']  (위→아래, 2~5층)
+ *   notes: 층별 오른쪽 설명 (선택)
+ */
+function pyramid(s, o){
+  const T = s._T, n = o.items.length;
+  if (n < 2 || n > 5) throw new Error('피라미드는 2~5층');
+  guard(s, o.y, o.h, '피라미드');
+  const gap = o.gap == null ? 0.05 : o.gap;
+  const lh = (o.h - gap*(n-1)) / n;
+  const noteW = o.notes ? (o.noteW || 3.2) : 0;
+  const pw = o.w - (noteW ? noteW + 0.22 : 0);       // 피라미드 폭
+  const cxm = o.x + pw/2;
+  const tones = [s._C.dark, K.g2, K.g3, K.g4, K.g5];
+  let y = o.y;
+  for (let i=0;i<n;i++){
+    const topW = pw * i / n, botW = pw * (i+1) / n;
+    const tone = tones[Math.min(i, tones.length-1)];
+    const fg = onTone(tone);
+    if (i === 0) {
+      s.addShape('triangle', { x:+(cxm-botW/2).toFixed(4), y:+y.toFixed(4), w:+botW.toFixed(4), h:+lh.toFixed(4),
+        fill:{ color:tone }, line:{ type:'none' } });
+    } else {
+      // pptxgenjs는 도형의 조절점(adj)을 넘기지 못한다. 도형 이름에 값을 실어 보내고
+      // postprocess.py 가 실제 adj로 바꿔 넣는다(표지 평행사변형과 같은 방식).
+      const inset = (botW - topW)/2;
+      const adj = Math.round(inset / Math.min(botW, lh) * 100000);
+      s.addShape('trapezoid', { x:+(cxm-botW/2).toFixed(4), y:+y.toFixed(4), w:+botW.toFixed(4), h:+lh.toFixed(4),
+        fill:{ color:tone }, line:{ type:'none' }, objectName:`KSA_TRAP_${adj}` });
+    }
+    const tw = i === 0 ? botW*0.62 : (topW + botW)/2;
+    txt(s, o.items[i], { x:+(cxm-tw/2).toFixed(4), y:+(y + lh*(i===0?0.42:0.12)).toFixed(4),
+      w:+tw.toFixed(4), h:+(lh*(i===0?0.55:0.76)).toFixed(4),
+      sz:o.sz||T.body, b:true, c:fg, align:'center', valign:'middle', lh:1.2 });
+    if (o.notes && o.notes[i])
+      txt(s, o.notes[i], { x:+(o.x + pw + 0.22).toFixed(4), y:+y.toFixed(4), w:noteW, h:+lh.toFixed(4),
+        sz:o.noteSz||T.small, c:K.g1, valign:'middle', lh:1.3 });
+    y += lh + gap;
+  }
+  return { bottom:+(o.y+o.h).toFixed(3) };
+}
+
+/** 계단 — 발전·성장. 왼쪽에서 오른쪽으로 올라가며 진해진다.
+ *   items: [{t:'단계', d:'설명', v:'수치'}, … ]  (3~6개)
+ */
+function steps(s, o){
+  const T = s._T, n = o.items.length;
+  if (n < 3 || n > 6) throw new Error('계단 도식은 3~6단');
+  guard(s, o.y, o.h, '계단');
+  const gap = o.gap == null ? 0.10 : o.gap;
+  const sw = (o.w - gap*(n-1)) / n;
+  const base = o.y + o.h;
+  // 단이 몇이든 마지막이 가장 진하게 오도록 뒤에서 n개를 쓴다
+  const ramp = [K.g5, K.g4, K.g3, K.g2, s._C.dark];
+  const tones = ramp.slice(Math.max(0, ramp.length - n));
+  o.items.forEach((it, i) => {
+    const h = o.h * (0.34 + 0.66*(i+1)/n);
+    const x = o.x + i*(sw+gap), y = base - h;
+    const tone = tones[i], fg = onTone(tone);
+    s.addShape('rect', { x:+x.toFixed(4), y:+y.toFixed(4), w:+sw.toFixed(4), h:+h.toFixed(4),
+      fill:{ color:tone }, line:{ type:'none' } });
+    txt(s, it.t, { x:+x.toFixed(4), y:+(y+0.10).toFixed(4), w:+sw.toFixed(4), h:0.30,
+      sz:o.sz||T.body, b:true, c:fg, align:'center', valign:'middle' });
+    if (it.v) txt(s, it.v, { x:+x.toFixed(4), y:+(y+0.42).toFixed(4), w:+sw.toFixed(4), h:0.30,
+      sz:o.vSz||T.h2, b:true, c:fg, align:'center', valign:'middle' });
+    if (it.d) txt(s, it.d, { x:+x.toFixed(4), y:+(base+0.06).toFixed(4), w:+sw.toFixed(4), h:0.44,
+      sz:o.dSz||T.small, c:K.g2, align:'center', valign:'top', lh:1.25 });
+  });
+  return { bottom:+(base + (o.items.some(i=>i.d) ? 0.50 : 0)).toFixed(3) };
+}
+
+/** 하비볼 한 개 — 지름 d, 값 v(0~4). 채운 몫만큼 시계 방향으로 칠한다.
+ *  글리프(◔ ◕)는 맑은 고딕에 없어 다른 서체로 대체되며 작게 깨진다. 그래서 도형으로 그린다.
+ *  부채꼴의 각도는 pptxgenjs가 넘기지 못하므로 도형 이름에 실어 postprocess.py 가 넣는다.
+ */
+function harveyBall(s, o){
+  const d = o.d, v = o.v, c = o.color || K.ink, line = o.line || K.g3;
+  const x = +(o.x - d/2).toFixed(4), y = +(o.y - d/2).toFixed(4);
+  if (v >= 4) {
+    s.addShape('ellipse', { x, y, w:d, h:d, fill:{ color:c }, line:{ color:c, width:0.75 } });
+    return;
+  }
+  // 부채꼴은 adj1=0(3시)에서 시계 방향으로 칠하고, 도형을 돌려 시작 위치를 맞춘다.
+  //   rotate -90 → 12–3시,  0 → 3–6시,  90 → 6–9시,  180 → 9–12시
+  // 270°짜리 부채꼴은 렌더러가 제대로 그리지 못하므로 3/4은 반원 + 사분원으로 나눠 그린다.
+  const wedge = (deg, rot) => s.addShape('pie', { x, y, w:d, h:d, rotate:rot,
+    fill:{ color:c }, line:{ type:'none' }, objectName:`KSA_PIE_${deg*60000}` });
+  if (v === 1) wedge(90, -90);            // 12–3시
+  else if (v === 2) wedge(180, -90);      // 오른쪽 반
+  else if (v === 3) { wedge(180, -90); wedge(90, 90); }   // 오른쪽 반 + 6–9시
+  s.addShape('ellipse', { x, y, w:d, h:d, fill:{ type:'none' }, line:{ color:line, width:0.75 } });
+}
+
+/** 하비볼 평가표 — 비교평가. 명도가 아니라 **채운 몫**으로 5단계를 읽힌다.
+ *   rows: [{ t:'항목', v:[0,2,4, … ] }]  v는 0~4
+ *   cols: ['대안 A','대안 B', … ]
+ *  값 칸은 네이티브 표에 비워 두고 그 위에 공을 얹는다. 항목 이름이 두 줄이 되면
+ *  행이 자라 공의 위치가 어긋나므로 한 줄을 넘기지 못하게 막는다.
+ */
+const HARVEY_STEPS = ['없음','낮음','보통','높음','매우 높음'];
+function harvey(s, o){
+  const T = s._T;
+  const n = o.cols.length;
+  const first = o.firstW || 3.0;
+  const rest = +((o.w - first) / n).toFixed(4);
+  const colW = o.colW || [first, ...Array(n).fill(rest)];
+  const headH = o.headH || Math.max(0.40, T.rowH);
+  const rowH = o.rowH || Math.max(0.46, T.rowH + 0.12);   // 공이 들어갈 만큼 높이를 준다
+  o.rows.forEach(r => {
+    if (r.v.length !== n) throw new Error(`하비볼 '${r.t}'의 값 ${r.v.length}개가 열 ${n}개와 다름`);
+    r.v.forEach(v => { if (!Number.isInteger(v) || v < 0 || v > 4)
+      throw new Error(`하비볼 값은 0~4 정수 (받은 값 ${v})`); });
+    if (lines(r.t, T.tableBody, colW[0] - 0.16) > 1)
+      throw new Error(`하비볼 항목 '${r.t}'이 한 줄을 넘는다 — 공 위치가 어긋나므로 짧게 쓸 것`);
+  });
+  const res = tableNative(s, { x:o.x, y:o.y, w:o.w, colW, headH, rowH,
+    head: [o.corner || '평가 항목', ...o.cols],
+    align: ['left', ...Array(n).fill('center')],
+    rows: o.rows.map(r => [r.t, ...Array(n).fill('')]) });
+  if (res.grown) throw new Error('하비볼 표의 행이 자랐다 — 열 폭을 넓히거나 이름을 줄일 것');
+  const d = o.ball || Math.min(0.22, rowH * 0.44);
+  o.rows.forEach((r, i) => {
+    const cy = o.y + headH + rowH*i + rowH/2;
+    r.v.forEach((v, j) => {
+      const cx = o.x + colW.slice(0, j+1).reduce((p, q) => p+q, 0) + colW[j+1]/2;
+      harveyBall(s, { x:+cx.toFixed(4), y:+cy.toFixed(4), d, v });
+    });
+  });
+  // 범례도 글리프가 아니라 같은 공으로 그린다
+  if (o.legend !== false) {
+    const ly = +(res.bottom + 0.16).toFixed(4);
+    let lx = o.x + d/2;
+    HARVEY_STEPS.forEach((t, v) => {
+      harveyBall(s, { x:+lx.toFixed(4), y:ly, d:d*0.86 });
+      harveyBall(s, { x:+lx.toFixed(4), y:ly, d:d*0.86, v });
+      const tw = textW(t, T.cap) + 0.10;
+      txt(s, t, { x:+(lx + d*0.62).toFixed(4), y:+(ly - 0.11).toFixed(4), w:+tw.toFixed(4), h:0.22,
+        sz:T.cap, c:K.g2, valign:'middle', wrap:false });
+      lx += d*0.62 + tw + 0.22;
+    });
+    return { bottom:+(ly + 0.16).toFixed(3) };
+  }
+  return { bottom:res.bottom };
+}
+
+/** 원인 → 결과 — 전후 관계. 왼쪽 현상에서 오른쪽 결과로 잇는다.
+ *   rows: [{ cause:'현상', effect:'결과', note:'매개' }]  (1~4행)
+ */
+function causeEffect(s, o){
+  const T = s._T, n = o.rows.length;
+  if (n < 1 || n > 4) throw new Error('원인→결과는 1~4행');
+  guard(s, o.y, o.h, '원인→결과');
+  const gap = o.gap == null ? 0.14 : o.gap;
+  const rh = (o.h - 0.34 - gap*(n-1)) / n;          // 0.34 = 머리 밴드
+  const aw = o.arrowW || 0.62;
+  const cw2 = (o.w - aw - 0.28) / 2;
+  const lx = o.x, rx = o.x + cw2 + aw + 0.28;
+  [[lx, o.causeLabel || '현상', K.g2], [rx, o.effectLabel || '결과', s._C.dark]]
+    .forEach(([x, t, c]) => {
+      s.addShape('rect', { x:+x.toFixed(4), y:+o.y.toFixed(4), w:+cw2.toFixed(4), h:0.30,
+        fill:{ color:c }, line:{ type:'none' } });
+      txt(s, t, { x:+x.toFixed(4), y:+o.y.toFixed(4), w:+cw2.toFixed(4), h:0.30,
+        sz:o.headSz||T.h2, b:true, c:K.w, align:'center', valign:'middle' });
+    });
+  let y = o.y + 0.34;
+  o.rows.forEach((r) => {
+    box(s, { x:lx, y:+y.toFixed(4), w:+cw2.toFixed(4), h:+rh.toFixed(4), fill:K.w, line:K.g4, what:'현상' });
+    txt(s, r.cause, { x:+(lx+T.pad).toFixed(4), y:+y.toFixed(4), w:+(cw2-2*T.pad).toFixed(4), h:+rh.toFixed(4),
+      sz:o.sz||T.body, valign:'middle', lh:1.3 });
+    s.addShape('rightArrow', { x:+(lx+cw2+0.14).toFixed(4), y:+(y + rh/2 - 0.13).toFixed(4), w:aw, h:0.26,
+      fill:{ color:K.g4 }, line:{ type:'none' } });
+    if (r.note) txt(s, r.note, { x:+(lx+cw2+0.14).toFixed(4), y:+(y + rh/2 - 0.44).toFixed(4), w:aw, h:0.28,
+      sz:Math.max(8.5, T.cap), c:K.g2, align:'center', valign:'middle', wrap:false });
+    box(s, { x:rx, y:+y.toFixed(4), w:+cw2.toFixed(4), h:+rh.toFixed(4), fill:K.g7, line:K.g4, what:'결과' });
+    txt(s, r.effect, { x:+(rx+T.pad).toFixed(4), y:+y.toFixed(4), w:+(cw2-2*T.pad).toFixed(4), h:+rh.toFixed(4),
+      sz:o.sz||T.body, b:true, valign:'middle', lh:1.3 });
+    y += rh + gap;
+  });
+  return { bottom:+(o.y+o.h).toFixed(3) };
+}
+
 function chevrons(s, steps, o){
   const T=s._T, n=steps.length, step=(o.w)/n, chW=step+0.30, h=o.h||0.80;
   steps.forEach((st,i)=>{
@@ -785,4 +1075,5 @@ module.exports = { P, K, FONT, TEXT_MIN, W, H, M, CW, BB, TITLE_Y, TITLE_MAX, Z,
   textW, lines, needH, PALETTE, imgSize, findLogo, createDeck, frame, head, sub, guard, box, txt,
   underline, hr, logoAt, sectionTitle, kpiRow, table, tableNative, bullets, chevrons, waterfall, tree, matrix,
   gantt, layers, callout, panel, footnote, source, pill, cover, coverPlain, toc,
-  barChart, lineChart, pieChart, comboChart, chartNote, seriesRamp, SERIES_MAX };
+  barChart, lineChart, pieChart, comboChart, chartNote, seriesRamp, SERIES_MAX,
+  venn, hubSpoke, cycle, pyramid, steps, harvey, harveyBall, causeEffect, HARVEY_STEPS, onTone };

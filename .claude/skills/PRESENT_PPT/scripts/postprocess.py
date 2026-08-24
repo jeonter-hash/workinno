@@ -96,6 +96,39 @@ COVER_LEAN = 0.2126        # 표지 띠 사선 기울기 tan(12°) — ksa_mono.
 PIC_RE = re.compile(r"<p:pic>.*?</p:pic>", re.S)
 
 
+TRAP_RE = re.compile(r"<p:sp>(?:(?!</p:sp>).)*?</p:sp>", re.S)
+
+
+def fix_adjust(text):
+    """도형의 조절점(adj)을 도형 이름에 실린 값으로 바꾼다 — 피라미드 사다리꼴과 하비볼 부채꼴.
+
+    pptxgenjs는 도형의 adj를 넘기지 못해 사다리꼴이 기본 기울기(25000)로 나온다.
+    ksa_mono.js 의 pyramid()가 도형 이름에 KSA_TRAP_<adj>로 값을 실어 보내고
+    여기서 실제 adj를 넣는다. 이 값이 없으면 층마다 기울기가 어긋난다.
+    """
+    n = 0
+
+    def one(m):
+        nonlocal n
+        sp = m.group(0)
+        g = re.search(r'name="KSA_(TRAP|PIE)_(\d+)"', sp)
+        if not g:
+            return sp
+        kind, val = g.group(1), g.group(2)
+        if kind == "TRAP":
+            prst, gd = "trapezoid", f'<a:gd name="adj" fmla="val {val}"/>'
+        else:   # 하비볼 부채꼴 — 3시에서 시계 방향으로 val(60000분의 1도)만큼
+            prst, gd = "pie", ('<a:gd name="adj1" fmla="val 0"/>'
+                               f'<a:gd name="adj2" fmla="val {val}"/>')
+        new = f'<a:prstGeom prst="{prst}"><a:avLst>{gd}</a:avLst></a:prstGeom>'
+        out, k = re.subn(r'<a:prstGeom prst="' + prst + r'"><a:avLst\s*/?>(?:</a:avLst>)?</a:prstGeom>',
+                         new, sp, count=1)
+        n += k
+        return out
+
+    return TRAP_RE.sub(one, text), n
+
+
 def shear_cover(text):
     """표지 띠 사진을 평행사변형으로 바꾼다.
 
@@ -118,7 +151,8 @@ def shear_cover(text):
         adj = max(0, min(adj, int(100000 * cx / min(cx, cy))))
         new = ('<a:prstGeom prst="parallelogram"><a:avLst>'
                f'<a:gd name="adj" fmla="val {adj}"/></a:avLst></a:prstGeom>')
-        out, k = re.subn(r'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>', new, pic, count=1)
+        out, k = re.subn(r'<a:prstGeom prst="rect"><a:avLst\s*/?>(?:</a:avLst>)?</a:prstGeom>',
+                         new, pic, count=1)
         n += k
         return out
 
@@ -160,7 +194,7 @@ def main():
         return 2
     dst = Path(args.out) if args.out else src
 
-    ea = ax = dpt = shear = face = 0
+    ea = ax = dpt = shear = face = trap = 0
     tmp = Path(tempfile.mkdtemp()) / "out.pptx"
     with zipfile.ZipFile(src) as zin, zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zout:
         for item in zin.infolist():
@@ -168,8 +202,10 @@ def main():
             if re.fullmatch(r"ppt/slides/slide\d+\.xml", item.filename):
                 text = data.decode("utf-8")
                 text, d = shear_cover(text)
+                text, e = fix_adjust(text)
                 shear += d
-                if d:
+                trap += e
+                if d or e:
                     data = text.encode("utf-8")
             if item.filename.startswith("ppt/charts/chart") and item.filename.endswith(".xml"):
                 text = data.decode("utf-8")
@@ -183,6 +219,8 @@ def main():
             zout.writestr(item, data)
     shutil.move(str(tmp), str(dst))
 
+    if trap:
+        print(f"도형 조절점 {trap}개 보정 (피라미드 사다리꼴·하비볼 부채꼴)")
     if face:
         print(f"차트 서체 {face}곳을 맑은 고딕으로 교체")
     if shear:
@@ -193,7 +231,7 @@ def main():
         print(f"미선언 축 참조(<c:axId>) {ax}개 제거 — PowerPoint 손상 경고 원인")
     if dpt:
         print(f"<c:dPt> {dpt}개를 <c:dLbls> 앞으로 이동 (ISO 순서)")
-    if not (ea or ax or dpt or shear or face):
+    if not (ea or ax or dpt or shear or face or trap):
         print("차트 파트에 고칠 것이 없다")
     print(f"→ {dst}")
     return 0
