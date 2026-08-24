@@ -11,8 +11,8 @@ const deck = B.createDeck({
   title:'AX 전환 로드맵',
   docTitle:'AX 전환 로드맵', // 마스터 우측 상단에 반복 표기
 });
-const s = deck.slide({ chapter:'1. 요약', source:'출처: ...' });                  // 5존 프레임 자동
-B.head(s, '헤드라인');   B.sub(s, '부제');
+const s = deck.slide({ chapter:'1. 요약' });                       // 5존 프레임 자동
+B.head(s, { title:'주제를 가리키는 명사구', message:'판단을 담은 한 문장 …함' });
 await deck.save('out.pptx');
 ```
 
@@ -34,8 +34,9 @@ await deck.save('out.pptx');
 |---|---|
 | `K` | 무채색 팔레트 (`K.ink` `K.g1`~`K.g7` `K.w`) |
 | `M` `CW` `W` `H` | 여백 0.5 · 콘텐츠 폭 9.8333 · 슬라이드 10.8333 × 7.5 |
-| `BT` `BB` | 본문 상한 2.20 · 하한 6.85 (벽) |
-| `Z` | 존 좌표 (`Z.body.x` 등) |
+| `deck.bt` `BB` | 본문 상단(모드별 2.00) · 하단 6.85 (벽). `BT` 상수는 없다 |
+| `Z` | 모드와 무관한 존 (`Z.chapter` `Z.rule` `Z.foot`) |
+| `zones(T)` | 모드별 헤드·본문 존 (`zones(deck.T).body` 등) |
 | `deck.T` | 현재 모드의 크기표 (`T.body` `T.rowH` `T.pad` …) |
 
 ## 배치
@@ -58,7 +59,7 @@ await deck.save('out.pptx');
 | `underline(s, text, pt, {x,y})` | **글자 폭에 맞춘** 밑줄 |
 | `head(s, {title, message})` | **헤드.** 타이틀(명사구 30자·1줄) + 메시지(명사형 개조식 2줄까지). 문법과 예문은 `references/headline.md` |
 | `sectionTitle(s, t, {x,y,w})` | 소제목 + 먹 구분선 |
-| `logoAt(s, {})` | 로고를 우상단에 원본 비율로 (표지용) |
+| `logoAt(s, {})` | 로고를 우상단에 원본 비율로. **격자 표지(`coverPlain`) 전용** — 사진 표지와 본문에는 넣지 않는다 |
 | `source(s, t, {x,y,w})` | 출처 — 도식·표 **바로 아래**에 붙인다. 푸터에 두지 않는다. **단위와 한 줄로 합친다**: `단위: 억 원 / 출처: …` |
 | `footnote(s, t, {x,y,w})` | 각주 — **오독 위험이 있을 때만.** 한 장표에 3줄 이상이면 점검기가 경고한다 |
 
@@ -70,8 +71,8 @@ await deck.save('out.pptx');
 
 ```js
 B.panel(s, { x:B.cx(0), y:2.46, w:B.cw(6), h:1.86, title:'추진 배경', items:[
-  { t:'문화ODA가 법정 사무로 신설되어 ’26.11.20부터 시행', sub:'국제문화교류진흥법 제5조의2' },
-  '기획예산처 재설치로 문화외교 추진체계와 재정 협의 창구가 함께 이동',
+  { t:'관련 법령 개정으로 신규 사무가 신설되어 차년도부터 시행', sub:'시행 시점은 관계 부처 고시에 따름' },
+  '재정당국 개편으로 예산 협의 창구와 심의 일정이 함께 이동',
 ]});
 ```
 

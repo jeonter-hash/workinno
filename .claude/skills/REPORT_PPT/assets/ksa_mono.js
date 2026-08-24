@@ -948,6 +948,7 @@ function pill(s, t, o){
 /**
  * 표지 — 제목 전용. 우측에 격자 모티프(좌상 → 우하로 차오르는 체계의 은유)를 깔고
  * 좌측에 제목·부제를, 하단에 기관·일자를 둔다. 목차는 넣지 않는다(다음 장이 목차다).
+ * 사진을 구할 수 없을 때만 쓴다. 기본 표지는 cover()의 사진 표지다.
  */
 function coverPlain(deck, o){
   const s = deck.bare({}); const C = s._C;
@@ -1050,7 +1051,7 @@ function cover(deck, o){
 
 function toc(deck, o){
   const s = deck.slide({ chapter: '' }); const C = s._C;
-  head(s, o.title || '목차');            // '목차'는 헤드라인에 한 번만 — 부제는 두지 않는다
+  head(s, o.title || '목차');            // '목차'는 타이틀에 한 번만 — 메시지는 두지 않는다
   const CH_H = 0.39, SUB_H = 0.27, GAP = 0.17;   // 장 구분선이 앞 항목 글자와 떨어지도록
   const BTt = s._T.bt;
   let y = BTt + 0.06;

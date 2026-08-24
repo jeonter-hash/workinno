@@ -13,6 +13,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent / ".claude" / "skills"
 SKILLS = ("PRESENT_PPT", "REPORT_PPT")
+# design-system.md 는 본문 상단이 모드마다 달라 두 스킬이 서로 다르다 — 공용 대상이 아니다.
 SHARED = (
     "references/diagrams.md",
     "assets/ksa_mono.js",
@@ -21,7 +22,6 @@ SHARED = (
     "scripts/check_layout.py",
     "scripts/measure_head.py",
     "references/headline.md",
-    "references/design-system.md",
 )
 
 
