@@ -68,7 +68,8 @@ B.panel(s, { x:B.cx(0), y:2.46, w:B.cw(6), h:1.86, title:'추진 배경', items:
 
 | 호출 | 설명 |
 |---|---|
-| `cover(deck, {title, subtitle, org, team, date})` | 표지. 격자 모티프 + 제목. 슬라이드 번호 없음 |
+| `cover(deck, {org, title, date, by, photos, panel})` | **사진 표지.** 사선 4분할 띠 + 먹 패널 + 대형 사진. 로고 없음. `photos` 생략 시 자리표시. 사진은 각각 독립 도형이라 PowerPoint에서 바꿔 끼운다 |
+| `coverPlain(deck, {title, subtitle, org, team, date})` | 격자 도형 표지(사진을 쓰지 않을 때) |
 | `toc(deck, {items})` | 목차. `items[i]`가 `{n,t,p}`면 장, `{t,p}`면 세부 항목. 점선 리더 + 쪽번호 |
 
 ## 표

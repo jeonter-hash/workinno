@@ -91,6 +91,40 @@ def fix_ser_order(text):
     return SER_RE.sub(fix, text), moved
 
 
+
+COVER_LEAN = 0.2126        # 표지 띠 사선 기울기 tan(12°) — ksa_mono.js COVER.lean 과 같아야 한다
+PIC_RE = re.compile(r"<p:pic>.*?</p:pic>", re.S)
+
+
+def shear_cover(text):
+    """표지 띠 사진을 평행사변형으로 바꾼다.
+
+    pptxgenjs는 그림을 사각형으로만 넣는다. altText가 KSA_COVER_BAND 로 시작하는
+    그림의 도형을 parallelogram 으로 바꿔 사선 분할을 만든다. 그림 도형이므로
+    PowerPoint에서 [그림 바꾸기]를 해도 사선이 유지된다.
+    """
+    n = 0
+
+    def one(m):
+        nonlocal n
+        pic = m.group(0)
+        if 'descr="KSA_COVER_BAND' not in pic:
+            return pic
+        ext = re.search(r'<a:ext cx="(\d+)" cy="(\d+)"/>', pic)
+        if not ext:
+            return pic
+        cx, cy = int(ext.group(1)), int(ext.group(2))
+        adj = int(round(cy * COVER_LEAN / min(cx, cy) * 100000))
+        adj = max(0, min(adj, int(100000 * cx / min(cx, cy))))
+        new = ('<a:prstGeom prst="parallelogram"><a:avLst>'
+               f'<a:gd name="adj" fmla="val {adj}"/></a:avLst></a:prstGeom>')
+        out, k = re.subn(r'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>', new, pic, count=1)
+        n += k
+        return out
+
+    return PIC_RE.sub(one, text), n
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("pptx")
@@ -102,11 +136,17 @@ def main():
         return 2
     dst = Path(args.out) if args.out else src
 
-    ea = ax = dpt = 0
+    ea = ax = dpt = shear = 0
     tmp = Path(tempfile.mkdtemp()) / "out.pptx"
     with zipfile.ZipFile(src) as zin, zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zout:
         for item in zin.infolist():
             data = zin.read(item.filename)
+            if re.fullmatch(r"ppt/slides/slide\d+\.xml", item.filename):
+                text = data.decode("utf-8")
+                text, d = shear_cover(text)
+                shear += d
+                if d:
+                    data = text.encode("utf-8")
             if item.filename.startswith("ppt/charts/chart") and item.filename.endswith(".xml"):
                 text = data.decode("utf-8")
                 text, a = inject_ea(text)
@@ -118,13 +158,15 @@ def main():
             zout.writestr(item, data)
     shutil.move(str(tmp), str(dst))
 
+    if shear:
+        print(f"표지 띠 사진 {shear}장을 평행사변형으로 변경")
     if ea:
         print(f"차트 한글 폰트(<a:ea>) {ea}곳 주입")
     if ax:
         print(f"미선언 축 참조(<c:axId>) {ax}개 제거 — PowerPoint 손상 경고 원인")
     if dpt:
         print(f"<c:dPt> {dpt}개를 <c:dLbls> 앞으로 이동 (ISO 순서)")
-    if not (ea or ax or dpt):
+    if not (ea or ax or dpt or shear):
         print("차트 파트에 고칠 것이 없다")
     print(f"→ {dst}")
     return 0

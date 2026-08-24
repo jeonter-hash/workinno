@@ -462,7 +462,7 @@ function pill(s, t, o){
  * 표지 — 제목 전용. 우측에 격자 모티프(좌상 → 우하로 차오르는 체계의 은유)를 깔고
  * 좌측에 제목·부제를, 하단에 기관·일자를 둔다. 목차는 넣지 않는다(다음 장이 목차다).
  */
-function cover(deck, o){
+function coverPlain(deck, o){
   const s = deck.bare({}); const C = s._C;
   const gx=5.75, gy=1.30, cell=0.40, gap=0.07, ROW=11, COL=10;
   for (let r=0;r<ROW;r++) for (let c=0;c<COL;c++){
@@ -488,6 +488,79 @@ function cover(deck, o){
  * 목차 — 본문 장표 프레임을 그대로 쓴다. '목차'는 헤드라인에 한 번만 쓰고
  * 좌상단 챕터명은 비워 중복을 없앤다. 항목은 {t, p} 또는 {n, t, p}(장) 형식.
  */
+
+/* ── 사진 표지 ───────────────────────────────────────────
+ * 상단 4분할 사진 띠(사선 분할) + 좌하단 먹 패널 + 우하단 대형 사진.
+ * 사진은 각각 **독립된 그림 도형**이라 PowerPoint에서 [그림 바꾸기]로 갈아끼운다.
+ * 사진을 주지 않으면 assets/photo_placeholder.png 자리표시가 들어간다.
+ *   photos: [띠1, 띠2, 띠3, 띠4, 대형] — 없거나 모자라면 자리표시로 채운다
+ * 사선은 후처리(postprocess.py)가 띠 사진의 도형을 평행사변형으로 바꿔 만든다.
+ */
+const COVER = {
+  bandY: 0.12, bandH: 2.61, lowY: 2.89,
+  x0: M, x1: +(W-M).toFixed(4),
+  lean: 0.2126,                    // 사선 기울기 tan(12°)
+  darkR: 4.66, wedge: 1.04,        // 먹 패널 오른쪽 끝 · 사선 폭
+  heroX: 3.60,                     // 대형 사진 왼쪽 끝 (먹 패널에 가려지는 구간)
+};
+
+function placeholderPath(){
+  const p = path.join(__dirname, 'photo_placeholder.png');
+  return fs.existsSync(p) ? p : null;
+}
+
+function cover(deck, o){
+  const s = deck.bare({}); const C = s._C;
+  const K_ = K, c = COVER;
+  const ph = placeholderPath();
+  const photos = Array.from({length:5}, (_,i) => (o.photos && o.photos[i]) || ph);
+  if (photos.some(p => !p))
+    throw new Error('표지 사진이 없고 assets/photo_placeholder.png도 없다 — 자리표시 파일을 두거나 photos를 넘길 것');
+
+  const dx = +(c.bandH * c.lean).toFixed(4);
+  const span = +(c.x1 - c.x0).toFixed(4);
+  const wt = +((span - dx)/4).toFixed(4);
+  const y0 = c.bandY, y1 = +(y0 + c.bandH).toFixed(4);
+
+  // 띠 — 0번은 왼쪽 모서리를 살리려 직사각형, 1~3번은 평행사변형(후처리에서 도형 변경)
+  s.addImage({ path:photos[0], x:c.x0, y:y0, w:+(wt+dx).toFixed(4), h:c.bandH,
+    sizing:{ type:'cover', w:+(wt+dx).toFixed(4), h:c.bandH }, altText:'KSA_COVER_RECT 표지 사진 1' });
+  for (let i=1;i<4;i++){
+    const x = +(c.x0 + i*wt).toFixed(4);
+    s.addImage({ path:photos[i], x, y:y0, w:+(wt+dx).toFixed(4), h:c.bandH,
+      sizing:{ type:'cover', w:+(wt+dx).toFixed(4), h:c.bandH },
+      altText:`KSA_COVER_BAND 표지 사진 ${i+1}` });
+  }
+  // 사진 사이 흰 사선
+  for (let i=1;i<4;i++)
+    s.addShape('line',{ x:+(c.x0 + i*wt).toFixed(4), y:y0, w:dx, h:c.bandH, flipV:true,
+      line:{ color:K_.w, width:7 } });
+
+  // 하단 — 대형 사진 위에 먹 패널과 삼각형을 얹어 사선을 만든다
+  // 먹 패널 색 — 무채색이면 #3A3A3A, 강조 팔레트면 네이비
+  const panel = o.panel || (C.dark === K_.ink ? K_.g1 : C.dark);
+  const lh = +(H - c.lowY).toFixed(4);
+  // 대형 사진은 먹 패널 아래로 조금만 물린다 — 사선 자리만 덮으면 되고, 그래야 사진의 가운데가 보인다
+  const hx = c.heroX, hw = +(c.x1 - hx).toFixed(4);
+  s.addImage({ path:photos[4], x:hx, y:c.lowY, w:hw, h:lh,
+    sizing:{ type:'cover', w:hw, h:lh }, altText:'KSA_COVER_HERO 표지 대형 사진' });
+  s.addShape('rect',{ x:c.x0, y:c.lowY, w:+(c.darkR-c.x0).toFixed(4), h:lh,
+    fill:{color:panel}, line:{type:'none'} });
+  s.addShape('rtTriangle',{ x:c.darkR, y:c.lowY, w:c.wedge, h:lh, flipV:true,
+    fill:{color:panel}, line:{type:'none'} });
+  s.addShape('line',{ x:c.darkR, y:c.lowY, w:c.wedge, h:lh, flipV:true,
+    line:{ color:K_.w, width:7 } });
+
+  // 글자 — 먹 패널 위
+  const tx = 0.60;
+  txt(s, o.org || '', { x:tx, y:3.78, w:3.95, h:0.30, sz:14, b:true, c:K_.w, valign:'middle' });
+  txt(s, o.title,     { x:tx, y:4.10, w:4.30, h:1.00, sz:26, b:true, c:K_.w, valign:'top', lh:1.15 });
+  hr(s, { x:tx, y:5.42, w:3.90, color:K_.w, width:1 });
+  txt(s, o.date || '', { x:tx+0.02, y:5.56, w:3.5, h:0.28, sz:12, c:K_.w, valign:'middle' });
+  txt(s, o.by || '한국표준협회', { x:tx+0.02, y:5.94, w:3.5, h:0.28, sz:12, c:K_.w, valign:'middle' });
+  return s;
+}
+
 function toc(deck, o){
   const s = deck.slide({ chapter: '' }); const C = s._C;
   head(s, o.title || '목차');            // '목차'는 헤드라인에 한 번만 — 부제는 두지 않는다
@@ -513,4 +586,4 @@ function toc(deck, o){
 module.exports = { P, K, FONT, TEXT_MIN, W, H, M, CW, BT, BB, Z, col, cx, cw, split, MODE,
   textW, lines, needH, PALETTE, imgSize, findLogo, createDeck, frame, head, sub, guard, box, txt,
   underline, hr, logoAt, sectionTitle, kpiRow, table, tableNative, bullets, chevrons, waterfall, tree, matrix,
-  gantt, layers, callout, panel, footnote, source, pill, cover, toc };
+  gantt, layers, callout, panel, footnote, source, pill, cover, coverPlain, toc };

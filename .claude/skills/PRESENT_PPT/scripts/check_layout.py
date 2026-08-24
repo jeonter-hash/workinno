@@ -350,8 +350,7 @@ def check(path, mode, special, strict, palette='mono'):
             # 11 로고
             pics = [b for b in bs if b.kind == "pic"]
             logo = [b for b in pics if abs(b.y - LOGO_Y) <= 0.10 and b.x > SLIDE_W / 2 and 0.10 <= b.h <= LOGO_H + 0.06]
-            if not logo and not is_special:
-                warns.append(f"{tag} 우상단 로고 없음")
+            # 이 체계는 로고를 쓰지 않는다(표지는 사진). logoAt()으로 넣었을 때만 위치·비율을 본다.
             for b in logo:
                 if abs((b.x + b.w) - LOGO_RIGHT) > 0.03:
                     fails.append(f'{tag} 로고 우측 끝 {b.x + b.w:.3f}" — 오른쪽 여백 0.5"(={LOGO_RIGHT:.3f}")로 맞출 것')
