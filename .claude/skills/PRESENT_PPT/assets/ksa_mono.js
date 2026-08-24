@@ -25,16 +25,34 @@ const TEXT_MIN = K.g2;          // 흰 배경 위 글자의 최소 명도 — �
 
 /* ── 판형·존 (A4 가로) ──────────────────────────────────── */
 const W = 10.8333, H = 7.5, M = 0.5, CW = W - 2*M;
-const BT = 2.20, BB = 6.85;   // 부제 하단(2.03)과 0.17" 간격                    // 본문 상·하한 (벽)
+const BB = 6.85;              // 본문 하한 (벽) — 모드 공통
+const TITLE_Y = 0.94;         // 타이틀 상자 상단 — 모드 공통
+const TITLE_MAX = 30;         // 타이틀 글자 수 상한 (1줄)
+
+/* 헤드 존의 좌표는 **렌더 실측**으로 잡았다.
+ * 맑은 고딕은 상자 위에서 글자까지 여백이 생기고 줄 간격도 계산값보다 넓다.
+ * 그래서 pt×행간÷72로 계산하면 어긋난다. 실측값은 다음과 같다(105dpi 렌더 측정).
+ *
+ *   타이틀 20pt : 상자 위에서 0.136" 아래부터 글자, 0.383"에서 끝
+ *   타이틀 24pt : 0.155" / 0.459"
+ *   메시지 12pt : 0.086"부터, 줄 간격 0.266", 2줄 글자 높이 0.400"
+ *   메시지 13pt : 0.102"부터, 줄 간격 0.288", 2줄 글자 높이 0.438"
+ *
+ * 이 값으로 **타이틀↔메시지 간격 = 메시지↔본문 간격 = 0.14"**가 되게 역산했다.
+ * 좌표를 손대려면 scripts/measure_head.py 로 다시 재고 나서 고칠 것.
+ */
 const Z = {
   chapter:{ x:M, y:0.40, w:6.2, h:0.30 },
   rule:   { y:0.82 },
   logo:   { y:0.44, h:0.24 },
-  head:   { x:M, y:1.00, w:CW, h:0.75 },
-  sub:    { x:M, y:1.63, w:CW, h:0.40 },
-  body:   { x:M, y:BT,   w:CW, h:BB-BT },   // 4.65"
   foot:   { x:M, y:7.05, w:CW, h:0.25 },
 };
+/** 모드별 헤드·본문 존 */
+const zones = T => ({
+  title: { x:M, y:TITLE_Y, w:CW, h:T.titleH },
+  msg:   { x:M, y:T.msgY,  w:CW, h:T.msgH  },   // 2줄분 고정 — 1줄이어도 본문은 안 올라온다
+  body:  { x:M, y:T.bt,    w:CW, h:BB-T.bt },
+});
 const col = (CW-11*0.2)/12;
 const cx = i => +(M + i*(col+0.2)).toFixed(4);
 const cw = n => +(n*col + (n-1)*0.2).toFixed(4);
@@ -44,13 +62,17 @@ const split = n => { if (12%n) throw new Error('split은 2·3·4·6'); const sp=
 /* ── 밀도 프로파일 ──────────────────────────────────────── */
 const MODE = {
   present: { name:'발표용', chapter:14, h1:24, sub:13, h2:14, body:11.5, small:10, cap:9.5,
-             kpi:34, kpiLabel:10.5, tableHead:10.5, tableBody:10.5, rowH:0.44, pad:0.17, lh:1.35, gap:0.20 },
+             kpi:34, kpiLabel:10.5, tableHead:10.5, tableBody:10.5, rowH:0.44, pad:0.17, lh:1.35, gap:0.20,
+             titleH:0.46, msgY:1.43, msgH:0.62, bt:2.11, msgMax:120 },
   report:  { name:'보고서용', chapter:12, h1:20, sub:11.5, h2:12, body:9.5, small:9, cap:9,
-             kpi:24, kpiLabel:9, tableHead:9.5, tableBody:9.5, rowH:0.335, pad:0.12, lh:1.28, gap:0.14 },
+             kpi:24, kpiLabel:9, tableHead:9.5, tableBody:9.5, rowH:0.335, pad:0.12, lh:1.28, gap:0.14,
+             titleH:0.40, msgY:1.37, msgH:0.58, bt:2.00, msgMax:130 },
   // dense — 20행 표처럼 내용이 많을 때만. 한 장 수용량이 약 18% 늘어난다(11행 → 13행).
   // 8.5pt가 하한이며 그 아래는 인쇄·투사 어디서도 안전하지 않다.
+  // dense는 보고서와 같은 헤드 상자를 쓴다 — 글자만 작아지므로 간격이 조금 더 벌어진다.
   report_dense: { name:'보고서용(고밀도)', chapter:11.5, h1:19, sub:11, h2:11.5, body:9, small:8.5, cap:8.5,
-             kpi:22, kpiLabel:8.5, tableHead:9, tableBody:9, rowH:0.295, pad:0.10, lh:1.25, gap:0.12 },
+             kpi:22, kpiLabel:8.5, tableHead:9, tableBody:9, rowH:0.295, pad:0.10, lh:1.25, gap:0.12,
+             titleH:0.40, msgY:1.37, msgH:0.58, bt:2.00, msgMax:135 },
 };
 
 /* ── 글자 폭 추정 (밑줄을 글자 폭에 맞추는 데 사용) ───────── */
@@ -119,7 +141,7 @@ function createDeck(o={}){
   if (o.title) pres.title=o.title;
   if (o.author) pres.author=o.author;
   const logo = findLogo(o.logo);
-  const deck = { pres, T, C, logo, page:0, docTitle: o.docTitle || o.title || '',
+  const deck = { pres, T, C, logo, page:0, bt:T.bt, BB, docTitle: o.docTitle || o.title || '',
     slide(opt={}){
       const s = pres.addSlide({ masterName:'KSA_BODY' }); s._T=T; s._C=C; s._deck=deck;
       deck.page += 1; s._page = opt.page==null? deck.page : opt.page;
@@ -151,18 +173,58 @@ function logoAt(s, o={}){
   return { x, w, h };
 }
 
-const head = (s,t,o={}) => s.addText(t, { ...Z.head, fontFace:FONT, fontSize:o.size||s._T.h1, bold:true,
-  color:K.ink, valign:'top', margin:0, charSpacing:-0.4, lineSpacingMultiple:1.25 });
-const sub  = (s,t) => s.addText(t, { ...Z.sub, fontFace:FONT, fontSize:s._T.sub, color:K.g2,
-  valign:'top', margin:0, lineSpacingMultiple:1.4 });
+/**
+ * 헤드 — 타이틀과 메시지로 나눈다.
+ *   head(s, { title:'업무별 시간 구조 및 절감 여력',
+ *             message:'상위 4개 업무가 …를 차지하는 반면 잔여 8개 업무는 … 제한적임' })
+ *
+ * 타이틀은 주제를 가리키는 짧은 명사구(30자·1줄). 챕터에 이미 있는 대분류는 넣지 않는다.
+ * 메시지는 판단을 담은 한 문장이며 명사형 개조식(~함/~임/~해야 함/…)으로 끝낸다.
+ * 자세한 문법과 예문은 references/headline.md 를 볼 것.
+ *
+* 문자열 하나만 넘기면 타이틀만 그린다(목차·간지용).
+ * 줄 수는 글자 폭을 실제로 계산해 판정하므로 숫자·영문이 많으면 더 들어간다.
+ */
+function head(s, o, opt={}){
+  const T = s._T, Zn = zones(T);
+  const title = typeof o === 'string' ? o : o.title;
+  const message = typeof o === 'string' ? null : o.message;
+  if (!title) throw new Error('head: 타이틀이 없다');
+
+  if (title.length > TITLE_MAX)
+    throw new Error(`헤드 타이틀이 ${title.length}자 — 상한 ${TITLE_MAX}자. `
+      + `${title.length - TITLE_MAX}자를 줄일 것. 대분류는 챕터에 있으므로 넣지 않는다: "${title}"`);
+  if (lines(title, opt.size||T.h1, Zn.title.w) > 1)
+    throw new Error(`헤드 타이틀이 한 줄을 넘는다 — 더 짧게 쓸 것: "${title}"`);
+
+  s.addText(title, { ...Zn.title, fontFace:FONT, fontSize:opt.size||T.h1, bold:true,
+    color:K.ink, valign:'top', margin:0, charSpacing:-0.4, lineSpacingMultiple:1.2 });
+  if (!message) return s;
+
+  if (message.length > T.msgMax)
+    throw new Error(`헤드 메시지가 ${message.length}자 — ${T.name} 상한 ${T.msgMax}자(2줄). `
+      + `${message.length - T.msgMax}자를 줄일 것: "${message.slice(0,40)}…"`);
+  const n = lines(message, T.sub, Zn.msg.w);
+  if (n > 2)
+    throw new Error(`헤드 메시지가 ${n}줄 — 2줄까지만 쓴다. 문장을 나누지 말고 줄일 것: "${message.slice(0,40)}…"`);
+
+  s.addText(message, { ...Zn.msg, fontFace:FONT, fontSize:T.sub, color:K.g1,
+    valign:'top', margin:0, lineSpacingMultiple:1.30 });
+  return s;
+}
+/** 옛 코드 호환 — 메시지만 따로 그린다. 새 장표는 head({title, message})를 쓸 것. */
+const sub = (s,t) => s.addText(t, { ...zones(s._T).msg, fontFace:FONT, fontSize:s._T.sub, color:K.g1,
+  valign:'top', margin:0, lineSpacingMultiple:1.30 });
 
 /* ── 기본 조각 ──────────────────────────────────────────── */
-function guard(y,h,what='요소'){
-  if (y < BT-0.005) throw new Error(`${what}가 본문 상단(2.39")을 침범: y=${y}`);
-  if (y+h > BB+0.005) throw new Error(`${what}가 본문 하단(6.85")을 침범: ${(y+h).toFixed(3)}`);
+/** 본문 벽 검사 — 본문 상단은 모드마다 다르므로 슬라이드에서 읽는다 */
+function guard(s,y,h,what='요소'){
+  const bt = s && s._T ? s._T.bt : 2.00;
+  if (y < bt-0.005) throw new Error(`${what}가 본문 상단(${bt}")을 침범: y=${y}`);
+  if (y+h > BB+0.005) throw new Error(`${what}가 본문 하단(${BB}")을 침범: ${(y+h).toFixed(3)}`);
 }
 function box(s,o){
-  guard(o.y,o.h,o.what||'박스');
+  guard(s,o.y,o.h,o.what||'박스');
   const noLine = o.line==='none' || o.lw===0;
   s.addShape(o.round?'roundRect':'rect', { x:o.x, y:o.y, w:o.w, h:o.h, ...(o.round?{rectRadius:o.round}:{}),
     fill:{ color:o.fill||K.w },
@@ -202,7 +264,7 @@ function kpiRow(s, items, o){
 function table(s, o){
   const T=s._T, colW=o.colW, rowH=o.rowH||T.rowH, headH=o.headH||rowH;
   const total=+colW.reduce((a,b)=>a+b,0).toFixed(4), h=headH+rowH*o.rows.length;
-  guard(o.y,h,'표');
+  guard(s,o.y,h,'표');
   if (o.x + total > W - M + 0.005)
     throw new Error(`표 폭 합계 ${total}"가 우측 여백을 넘음 — x=${o.x}에서 쓸 수 있는 폭은 ${+(W-M-o.x).toFixed(4)}"`);
   o.rows.forEach((r,i)=>{ if (r.length!==colW.length)
@@ -245,7 +307,7 @@ function tableNative(s, o){
   const headH = Math.max(o.headH||rowH, grow(rowLines(o.head, T.tableHead), T.tableHead));
   const rowHs = o.rows.map(r => Math.max(rowH, grow(rowLines(r, T.tableBody), T.tableBody)));
   const tall = +(headH + rowHs.reduce((a,b)=>a+b,0)).toFixed(3);
-  guard(o.y, tall, `표(slide ${s._page})`);
+  guard(s,o.y, tall, `표(slide ${s._page})`);
   if (o.x + total > W - M + 0.005)
     throw new Error(`표 폭 합계 ${total}"가 우측 여백을 넘음 — x=${o.x}에서 쓸 수 있는 폭은 ${+(W-M-o.x).toFixed(4)}"`);
   o.rows.forEach((r,i)=>{ if (r.length!==colW.length)
@@ -565,8 +627,9 @@ function toc(deck, o){
   const s = deck.slide({ chapter: '' }); const C = s._C;
   head(s, o.title || '목차');            // '목차'는 헤드라인에 한 번만 — 부제는 두지 않는다
   const CH_H = 0.39, SUB_H = 0.27, GAP = 0.17;   // 장 구분선이 앞 항목 글자와 떨어지도록
-  let y = BT + 0.06;
-  hr(s, { x:M, y:BT, w:CW, color:K.ink, width:1 });   // 본문 앵커 겸 첫 장 구분선
+  const BTt = s._T.bt;
+  let y = BTt + 0.06;
+  hr(s, { x:M, y:BTt, w:CW, color:K.ink, width:1 });   // 본문 앵커 겸 첫 장 구분선
   o.items.forEach((it, i) => {
     const top = !!it.n, sz = top ? 14 : 11.5;
     if (top && i > 0) { y += GAP; hr(s, { x:M, y:y-0.05, w:CW, color:K.ink, width:1 }); }
@@ -579,11 +642,11 @@ function toc(deck, o){
       c:top?K.ink:K.g1, align:'right' });
     y += top ? CH_H : SUB_H;
   });
-  guard(BT, y - BT, '목차 목록');
+  guard(s, BTt, y - BTt, '목차 목록');
   return s;
 }
 
-module.exports = { P, K, FONT, TEXT_MIN, W, H, M, CW, BT, BB, Z, col, cx, cw, split, MODE,
+module.exports = { P, K, FONT, TEXT_MIN, W, H, M, CW, BB, TITLE_Y, TITLE_MAX, Z, zones, col, cx, cw, split, MODE,
   textW, lines, needH, PALETTE, imgSize, findLogo, createDeck, frame, head, sub, guard, box, txt,
   underline, hr, logoAt, sectionTitle, kpiRow, table, tableNative, bullets, chevrons, waterfall, tree, matrix,
   gantt, layers, callout, panel, footnote, source, pill, cover, coverPlain, toc };

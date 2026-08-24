@@ -34,8 +34,16 @@ A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
 P = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
 
 SLIDE_W, SLIDE_H = 10.8333, 7.5
-ANCHORS = {"챕터": 0.40, "헤드라인": 1.00, "부제": 1.63, "본문": 2.20, "푸터": 7.05}
-BODY_TOP, BODY_BOTTOM, CLEAR_BOTTOM = 2.20, 6.85, 7.05
+# 헤드 존 좌표는 모드마다 다르다 (assets/ksa_mono.js MODE 와 같아야 한다)
+ZONE = {
+    "present": {"챕터": 0.40, "타이틀": 0.94, "메시지": 1.43, "본문": 2.11, "푸터": 7.05},
+    "report":  {"챕터": 0.40, "타이틀": 0.94, "메시지": 1.37, "본문": 2.00, "푸터": 7.05},
+}
+BODY_BOTTOM, CLEAR_BOTTOM = 6.85, 7.05
+# 헤드 메시지 종결 — 명사형 개조식. 서술체·의문형은 헤드에 쓰지 않는다
+MSG_END = re.compile(r"(함|임|음|됨|짐|필요|시급|불가피|전망)\s*$")
+MSG_LINE = {"present": 54, "report": 59}      # 한 줄에 들어가는 한글 글자 수
+TITLE_MAX = 30
 TOL = 0.02
 LOGO_H, LOGO_Y, LOGO_RIGHT, LOGO_MAX_W = 0.24, 0.44, SLIDE_W - 0.5, 1.9
 FONT_OK = ("맑은 고딕", "Malgun Gothic")
@@ -47,6 +55,8 @@ PALETTE = {"111111", "3A3A3A", "6B6B6B", "9E9E9E", "C7C7C7", "E4E4E4",
            "F4F4F4", "FAFAFA", "FFFFFF", "000000", "333333"}
 ACCENT = {"1F3864", "4A6491", "C4303C", "F2E4E6", "E8A0A6"}   # --palette accent 에서만 허용
 TEXT_FLOOR = 0x9E          # 흰 배경 위 글자는 이보다 밝으면 안 된다
+# 겹침을 볼 도형 — 체브론·화살표는 설명글을 덮기 쉬우므로 포함한다
+OVERLAP_PRST = ("rect", "roundRect", "chevron", "homePlate", "rightArrow", "downArrow", "pentagon")
 GHOST_LINE = re.compile(r'<a:ln w="12700"><a:solidFill><a:srgbClr val="333333"/>')
 EMOJI = re.compile("[\U0001F300-\U0001FAFF\U00002600-\U000027BF\uFE0F]")
 
@@ -190,16 +200,25 @@ def has_callout(bs):
 CALLOUT_FILL = {"F4F4F4", "111111", "1F3864", "C4303C"}
 
 # ── 문안 규칙 — 컨설턴트 문투에서 걷어낼 표현 ──────────────────
+# 본문에만 적용한다. 헤드는 한자어 명사구·'~ 시'·'~ 필요함'을 표준으로 쓴다(references/headline.md).
 BAD_PHRASE = [
     (re.compile(r"되어지|하여지|불려지|보여지"), "이중 피동 — '~된다'로 쓸 것"),
-    (re.compile(r"것으로 (?:판단|사료|보여|예상)됨"), "번역투 상투구 — 판단을 그대로 쓸 것"),
-    (re.compile(r"니즈"), "외래어 — '요구'로"),
-    (re.compile(r"제고(?!율)"), "관공서 한자어 — '높임'으로"),
-    (re.compile(r"[가-힣] 시 (?=[가-힣])"), "'~ 시' 축약 — '~하면'으로 풀 것"),
-    (re.compile(r"지양 필요|필요성 존재|요구됨|필요함(?![니다])"), "근거 없는 당위 — 근거와 함께 쓸 것"),
+    (re.compile(r"것으로 (?:판단|사료|보여)됨"), "상투구 — 판단을 그대로 쓸 것"),
     (re.compile(r"대폭|획기적|전방위적|비약적"), "수치 없는 평가어 — 숫자로 대체할 것"),
-    (re.compile(r"을 통한 도출|를 통한 도출|등을 통한"), "명사 나열 — 동사로 풀 것"),
 ]
+
+
+def head_texts(bs, z):
+    """헤드 존(타이틀·메시지)의 글상자를 (타이틀, 메시지 목록)으로 나눈다."""
+    title, msg = [], []
+    for b in bs:
+        if not b.text:
+            continue
+        if abs(b.y - z["타이틀"]) <= TOL:
+            title.append(b)
+        elif abs(b.y - z["메시지"]) <= TOL:
+            msg.append(b)
+    return title, msg
 
 
 def logo_asset():
@@ -213,6 +232,9 @@ def logo_asset():
 def check(path, mode, special, strict, palette='mono'):
     fails, warns = [], []
     body_slides, callout_slides = [], []
+    zone = ZONE[mode]
+    body_top = zone["본문"]
+    msg_bottom = zone["본문"] - 0.10        # 메시지 글자 하단과 본문 사이의 완충 구간
     min_pt = MIN_PT[mode]
     allowed_chroma = ACCENT if palette == 'accent' else set()
     asset = logo_asset()
@@ -254,42 +276,63 @@ def check(path, mode, special, strict, palette='mono'):
             # 5 본문 하드 경계
             if not is_special:
                 for b in bs:
-                    if b.y >= BODY_TOP - 0.4 and b.bottom > BODY_BOTTOM + TOL and b.y < CLEAR_BOTTOM - TOL:
+                    if b.y >= body_top - 0.4 and b.bottom > BODY_BOTTOM + TOL and b.y < CLEAR_BOTTOM - TOL:
                         extra = " (네이티브 표 실제 높이 기준)" if b.kind == "표" else ""
                         fails.append(f'{tag} 본문 하단 6.85" 침범: {b}{extra}')
                     elif BODY_BOTTOM + TOL < b.y < CLEAR_BOTTOM - TOL:
                         fails.append(f'{tag} 클리어런스 버퍼(6.85–7.05") 침범: {b}')
-                    if 2.03 + TOL < b.y < BODY_TOP - TOL:
-                        fails.append(f'{tag} 부제와 본문 사이(2.03–2.20") 침범: {b}')
+                    if msg_bottom + TOL < b.y < body_top - TOL:
+                        fails.append(f'{tag} 헤드와 본문 사이({msg_bottom:.2f}–{body_top:.2f}") 침범: {b}')
 
             # 6 존 앵커
             if not is_special:
                 ys = [b.y for b in bs]
-                missing = [k for k, v in ANCHORS.items() if not any(abs(y - v) <= TOL for y in ys)]
-                # 챕터명은 목차 등에서 비울 수 있다 — 경고로만 본다
-                hard = [k for k in missing if k not in ("챕터", "부제")]   # 목차·간지에서는 비울 수 있다
+                missing = [k for k, v in zone.items() if not any(abs(y - v) <= TOL for y in ys)]
+                # 챕터·메시지는 목차·간지에서 비울 수 있다 — 경고로만 본다
+                hard = [k for k in missing if k not in ("챕터", "메시지")]
                 if hard:
                     fails.append(f"{tag} 존 앵커 없음: {', '.join(hard)} — 5존 좌표가 흔들렸다")
-                for k in ("챕터", "부제"):
+                for k in ("챕터", "메시지"):
                     if k in missing:
                         warns.append(f"{tag} {k} 없음 (목차·간지면 정상)")
 
+            # 6b 헤드 문법 — 타이틀은 명사구 1줄, 메시지는 명사형 개조식 2줄까지
+            if not is_special:
+                titles, msgs = head_texts(bs, zone)
+                for b in titles:
+                    t = b.text
+                    if len(t) > TITLE_MAX:
+                        fails.append(f"{tag} 헤드 타이틀 {len(t)}자 — 상한 {TITLE_MAX}자: '{t[:34]}'")
+                    if t.endswith(("니다", "습니다", "함니다")) or t.endswith("?"):
+                        fails.append(f"{tag} 헤드 타이틀이 문장이다 — 명사구로 쓸 것: '{t[:34]}'")
+                    if ":" in t or "：" in t:
+                        warns.append(f"{tag} 헤드 타이틀에 대분류가 붙어 있다 — 챕터에 있으므로 뺄 것: '{t[:34]}'")
+                for b in msgs:
+                    m = b.text
+                    if not MSG_END.search(m):
+                        fails.append(f"{tag} 헤드 메시지가 명사형으로 끝나지 않는다 — '{m[-14:]}'")
+                    est = -(-len(m) // MSG_LINE[mode])
+                    if est > 2:
+                        fails.append(f"{tag} 헤드 메시지 {len(m)}자 — {mode} 2줄({MSG_LINE[mode]*2}자)을 넘는다")
+                    elif len(m) < 40:
+                        warns.append(f"{tag} 헤드 메시지가 {len(m)}자로 짧다 — 근거가 빠졌는지 볼 것: '{m}'")
+
             # 7 밀도
             if not is_special:
-                area = (SLIDE_W - 1.0) * (BODY_BOTTOM - BODY_TOP)
+                area = (SLIDE_W - 1.0) * (BODY_BOTTOM - body_top)
                 covered, bottom_band = 0.0, False
                 for b in bs:
-                    top, bot = max(b.y, BODY_TOP), min(b.bottom, BODY_BOTTOM)
+                    top, bot = max(b.y, body_top), min(b.bottom, BODY_BOTTOM)
                     if bot > top:
                         covered += (bot - top) * min(b.w, SLIDE_W - 1.0)
-                        if bot > BODY_BOTTOM - 0.30 * (BODY_BOTTOM - BODY_TOP):
+                        if bot > BODY_BOTTOM - 0.30 * (BODY_BOTTOM - body_top):
                             bottom_band = True
                 if not bottom_band:
                     fails.append(f'{tag} 본문 하단 30%가 비었다 — 근거·콜아웃·표로 채울 것')
                 # 본문 안의 빈 띠 — 요소 사이가 크게 비면 도형·표를 늘려 채운다
-                spans = sorted((max(b.y, BODY_TOP), min(b.bottom, BODY_BOTTOM))
-                               for b in bs if b.bottom > BODY_TOP and b.y < BODY_BOTTOM)
-                cur, gaps = BODY_TOP, []
+                spans = sorted((max(b.y, body_top), min(b.bottom, BODY_BOTTOM))
+                               for b in bs if b.bottom > body_top and b.y < BODY_BOTTOM)
+                cur, gaps = body_top, []
                 for a0, a1 in spans:
                     if a0 - cur > 0.001:
                         gaps.append((cur, a0))
@@ -306,11 +349,11 @@ def check(path, mode, special, strict, palette='mono'):
             # 7b 요소 겹침 — 나중에 그린 채움 도형이 앞선 글자를 덮는 경우
             if not is_special:
                 for i, a in enumerate(bs):
-                    if not a.text or a.y < BODY_TOP - 0.1:
+                    if not a.text or a.y < body_top - 0.1:
                         continue
                     for b in bs[i + 1:]:
                         # 체브론·화살표처럼 서로 물리도록 설계된 도형은 제외 (사각형 계열만 본다)
-                        if not b.filled or b.text or getattr(b, "prst", "") not in ("rect", "roundRect"):
+                        if not b.filled or b.text or getattr(b, "prst", "") not in OVERLAP_PRST:
                             continue
                         ratio = overlaps(a, b) / max(a.w * a.h, 0.001)
                         if ratio > 0.30:
@@ -318,7 +361,7 @@ def check(path, mode, special, strict, palette='mono'):
                 # 네이티브 표는 글상자가 아니라 graphicFrame이라 위 규칙에 걸리지 않는다 — 따로 본다
                 for t in (x for x in bs if x.kind == "표"):
                     for b in bs:
-                        if b is t or not b.filled or getattr(b, "prst", "") not in ("rect", "roundRect"):
+                        if b is t or not b.filled or getattr(b, "prst", "") not in OVERLAP_PRST:
                             continue
                         if overlaps(t, b) > 0.05:
                             fails.append(f"{tag} 표가 도형과 겹침: {t} ↔ {b} — 표 반환값 bottom으로 다음 y를 잡을 것")
@@ -380,9 +423,12 @@ def check(path, mode, special, strict, palette='mono'):
                 body_slides.append(n)
 
             # 15 문안 — 걷어낼 표현
-            # 문단 단위로 이어 붙인다 — 런 경계에 공백을 넣으면 '정합 시간'이 '~ 시'로 오탐된다
-            paras = ["".join((t.text or "") for t in para.iter(f"{A}t"))
-                     for para in tree.iter(f"{A}p")]
+            # 문단 단위로 이어 붙인다 — 런 경계에 공백을 넣으면 '정합 시간'이 '~ 시'로 오탐된다.
+            # 헤드(타이틀·메시지)는 한자어 명사구와 '~ 시'를 표준으로 쓰므로 검사에서 뺀다.
+            head_str = {b.text for b in bs if b.text and
+                        (abs(b.y - zone["타이틀"]) <= TOL or abs(b.y - zone["메시지"]) <= TOL)}
+            paras = [x for x in ("".join((t.text or "") for t in para.iter(f"{A}t"))
+                                 for para in tree.iter(f"{A}p")) if x not in head_str]
             for pat, why in BAD_PHRASE:
                 hit = next((pat.search(x) for x in paras if pat.search(x)), None)
                 if hit:
