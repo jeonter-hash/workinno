@@ -38,6 +38,8 @@ await deck.save('out.pptx');
 | `Z` | 모드와 무관한 존 (`Z.chapter` `Z.rule` `Z.foot`) |
 | `zones(T)` | 모드별 헤드·본문 존 (`zones(deck.T).body` 등) |
 | `deck.T` | 현재 모드의 크기표 (`T.body` `T.rowH` `T.pad` …) |
+| `MODE` `PALETTE` | 모드·팔레트 정의. 값을 읽을 때만 쓰고 고치지 않는다 |
+| `TITLE_MAX` `SERIES_MAX` | 타이틀 30자 · 차트 계열 5개 상한 |
 
 ## 배치
 
@@ -123,7 +125,8 @@ B.panel(s, { x:B.cx(0), y:2.46, w:B.cw(6), h:1.86, title:'추진 배경', items:
 | `pyramid(s, {x,y,w,h,items,notes,noteW})` | 피라미드. 2~5층, 위→아래 순서. 위로 갈수록 진해진다 |
 | `steps(s, {x,y,w,h,items})` | 계단. 3~6단. `items[i] = {t, v, d}` (이름·수치·설명) |
 | `harvey(s, {x,y,w,cols,rows,firstW})` | 하비볼 평가표. `rows[i] = {t, v:[0..4]}`. 범례가 자동으로 붙는다 |
-| `harveyBall(s, {x,y,d,v})` | 하비볼 하나. `x,y`는 **중심** |
+| `harveyBall(s, {x,y,d,v})` | 하비볼 하나. `x,y`는 **중심**, `v`는 0~4 |
+| `HARVEY_STEPS` | 하비볼 5단계의 뜻 배열 (범례를 직접 쓸 때) |
 | `causeEffect(s, {x,y,w,h,rows})` | 원인→결과. 1~4행. `rows[i] = {cause, effect, note}` |
 | `onTone(hex)` | 그 배경에 얹을 글자색(흰/먹)을 돌려준다 |
 

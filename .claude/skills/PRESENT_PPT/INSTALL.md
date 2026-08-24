@@ -38,7 +38,7 @@ claude.ai·Cowork 웹이면 스킬 관리 화면에서 이 zip을 그대로 올�
 ## 4. 직접 만들 때
 
 ```bash
-SK=~/.claude/skills/PRESENT_PPT
+SK=<이 스킬 폴더 경로>
 mkdir build && cp $SK/assets/{ksa_mono.js,example_deck.js,photo_placeholder.png} build/ && cd build
 node example_deck.js deck.pptx                        # 발표용 11장 예시 생성
 python3 $SK/scripts/postprocess.py deck.pptx          # 필수

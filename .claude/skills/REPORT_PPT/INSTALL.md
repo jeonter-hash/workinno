@@ -38,11 +38,11 @@ claude.ai·Cowork 웹이면 스킬 관리 화면에서 이 zip을 그대로 올�
 ## 4. 직접 만들 때
 
 ```bash
-SK=~/.claude/skills/REPORT_PPT
+SK=<이 스킬 폴더 경로>
 mkdir build && cp $SK/assets/{ksa_mono.js,example_deck.js,photo_placeholder.png} build/ && cd build
 node example_deck.js deck.pptx                        # 보고서용 13장 예시 생성
 python3 $SK/scripts/postprocess.py deck.pptx          # 필수
-python3 $SK/scripts/check_layout.py deck.pptx --mode report --special 1
+python3 $SK/scripts/check_layout.py deck.pptx --mode report --special 1,2
 ```
 
 `example_deck.js`를 복사해 내용만 갈아끼운다. **좌표는 직접 쓰지 않는다** — 컴포넌트가 갖고 있다.

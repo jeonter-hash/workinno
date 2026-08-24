@@ -51,11 +51,11 @@ description: 한국표준협회(KSA) 모노톤 보고서용 PPT를 만드는 스
 ## 2. 만드는 법
 
 ```bash
-SK=$(dirname $(find / -name SKILL.md -path '*REPORT_PPT*' 2>/dev/null | head -1))   # 스킬 폴더
+SK=<이 스킬 폴더 경로>          # 로컬은 ~/.claude/skills/REPORT_PPT, 코워크는 마운트된 위치
 mkdir build && cp $SK/assets/{ksa_mono.js,example_deck.js,photo_placeholder.png} build/ && cd build
 node example_deck.js deck.pptx                      # example_deck.js를 복사해 내용만 교체
 python3 $SK/scripts/postprocess.py deck.pptx        # 필수 — 아래 설명
-python3 $SK/scripts/check_layout.py deck.pptx --mode report --special 1
+python3 $SK/scripts/check_layout.py deck.pptx --mode report --special 1,2
 ```
 
 **`postprocess.py`는 선택이 아니다.** pptxgenjs 4.x가 차트에 *선언하지도 않은 축 참조*를 써 넣어, 그대로 두면 PowerPoint가 **"내용에 문제가 있습니다 / 복구하시겠습니까"** 대화상자를 띄운다. LibreOffice는 조용히 무시하므로 렌더 QA로는 드러나지 않는다. 점검기가 이를 검사하므로 빠뜨리면 FAIL로 막힌다.
@@ -184,7 +184,7 @@ B.panel(s, { x:B.cx(0), y:2.46, w:B.cw(6), h:1.86, title:'추진 배경', items:
 ### 헤드 — 타이틀 + 메시지
 
 **`references/headline.md`가 최종 권한이다.** 헤드를 쓸 때는 반드시 그 파일을 읽는다.
-실제 컨설팅 보고서 87건에서 뽑은 문형과 예문 49개가 유형별로 정리돼 있다.
+실제 컨설팅 보고서 87건에서 뽑은 문형과 예문 36개가 유형별로 정리돼 있다.
 
 ```js
 B.head(s, { title:'업무별 시간 구조 및 절감 여력',
@@ -223,7 +223,7 @@ soffice --headless --convert-to pdf deck.pptx && pdftoppm -png -r 78 deck.pdf p 
 
 점검기가 잡는 것 — A4 판형, 맑은 고딕 외 폰트(표·차트 내부까지), 8.5pt 미만, 슬라이드 밖 이탈, 본문 벽 침범(**네이티브 표는 `<a:tr h>` 합산으로 실제 높이 계산** — pptxgenjs는 표 높이를 1.0"로 고정 기재하므로 그 값을 믿으면 안 된다), 5존 앵커 이탈(모드별), 하단 30% 공백, **본문 빈 띠**(0.45" 초과 — 표를 늘려 채우라는 신호), **요소 겹침**(글자가 도형에 30% 이상 가림, **네이티브 표가 콜아웃·밴드와 겹침**), **의도하지 않은 검은 윤곽선**, 흐린 글자색, 유채색, 이모지, 차트 구조 결함, **헤드 문법**(타이틀 길이·메시지 종결·줄 수), **표 편중**.
 
-점검기가 새로 잡는 것 — **표 편중**(표가 본문 65%를 넘게 차지한 장표), **표와 도형의 겹침**(네이티브 표는 graphicFrame이라 글자 겹침 규칙에 안 걸린다), **각주 과다**(잔글씨 3줄 이상), **결론 밴드 남용**(본문 장표 60% 초과), **문안**(이중 피동·번역투·공문 축약형).
+점검기가 새로 잡는 것 — **표 편중**(표가 본문 65%를 넘게 차지한 장표), **표와 도형의 겹침**(네이티브 표는 graphicFrame이라 글자 겹침 규칙에 안 걸린다), **각주 과다**(잔글씨 3줄 이상), **결론 밴드 남용**(본문 장표 60% 초과), **문안**(이중 피동·상투구·수치 없는 평가어 — 헤드 존은 검사에서 뺀다).
 
 **렌더 QA는 반드시 한다.** 밀도가 높을수록 요소가 겹치기 쉽고, 겹침은 좌표 검사로 안 걸린다.
 

@@ -6,21 +6,25 @@
 검사 항목
    1  A4 가로 (10.8333" × 7.5") 슬라이드 크기
    2  맑은 고딕 외 폰트 (슬라이드·표·차트 파트 전부)
-   3  최소 글자 크기 (발표용 9.5pt / 보고서용 9pt)
+   3  최소 글자 크기 (발표용 9.5pt / 보고서용 8.5pt — dense 모드까지 허용)
    4  슬라이드 밖 이탈
-   5  본문 하드 경계 침범 (2.39"–6.85") — **네이티브 표는 <a:tr h> 합산으로 실제 높이 계산**
-   6  5존 앵커 고정 (챕터 0.40 / 헤드라인 1.00 / 부제 1.63 / 본문 2.39 / 푸터 7.05)
-   7  본문 밀도 — 하단 30% 공백, 본문 점유율
+   5  본문 하드 경계 침범 — 상단은 모드별(발표 2.11" / 보고서 2.00"), 하단 6.85".
+      **네이티브 표는 <a:tr h> 합산으로 실제 높이 계산**
+   6  5존 앵커 고정 — 챕터 0.40 / 타이틀 0.94 / 메시지(발표 1.43·보고서 1.37) /
+      본문(발표 2.11·보고서 2.00) / 푸터 7.05
+  6b  헤드 문법 — 타이틀 30자·1줄·명사구, 메시지 명사형 종결·2줄 이내
+   7  본문 밀도 — 하단 30% 공백, 본문 빈 띠, 본문 점유율
+  7b  요소 겹침 — 글자가 도형에 가림, 네이티브 표가 콜아웃·밴드와 겹침
    8  의도하지 않은 검은 윤곽선 — pptxgenjs가 line:{width:0}을 1pt #333333으로 그린다
    9  흰 배경 위 너무 흐린 글자 (#9E9E9E보다 밝은 색)
-  10  무채색 팔레트 이탈 (유채색 사용)
-  12  이모지
-  13  차트 구조 결함 — 미선언 <c:axId>, <c:dPt>/<c:dLbls> 순서 (PowerPoint 복구 대화상자 원인)
-  14  각주 과다 · 결론 밴드 남용 — 잔글씨 3줄 이상, 결론 밴드가 본문 장표 60% 초과
-  15  문안 — 이중 피동·번역투·공문 축약형 등 걷어낼 표현
-  16  표 편중 — 표가 본문 65%를 넘게 차지한 장표가 본문의 절반을 넘는가
+  10  무채색 팔레트 이탈 (유채색 사용) — --palette accent 면 강조 2색 허용
+  11  이모지
+  12  차트 구조 결함 — 미선언 <c:axId>, <c:dPt>/<c:dLbls> 순서 (PowerPoint 복구 대화상자 원인)
+  13  각주 과다 · 결론 밴드 남용 — 잔글씨 3줄 이상, 결론 밴드가 본문 장표 60% 초과
+  14  문안 — 이중 피동·상투구·수치 없는 평가어 (헤드 존은 검사에서 뺀다)
+  15  표 편중 — 표가 본문 65%를 넘게 차지한 장표가 본문의 절반을 넘는가
 
-FAIL이 하나라도 있으면 종료 코드 1. 표지·디바이더·클로징은 --special 로 제외한다.
+FAIL이 하나라도 있으면 종료 코드 1. 표지·목차·디바이더는 --special 로 제외한다.
 """
 import argparse
 import pathlib
@@ -370,19 +374,19 @@ def check(path, mode, special, strict, palette='mono'):
                 if not is_gray(cu) and cu not in allowed_chroma:
                     warns.append(f"{tag} 팔레트 밖 색 #{cu}")
 
-            # 12 이모지
+            # 11 이모지
             for t in tree.iter(f"{A}t"):
                 if t.text and EMOJI.search(t.text):
                     fails.append(f"{tag} 이모지 사용: {t.text[:24]}")
 
-            # 16 표만 있는 장표 — 도식도 차트도 없이 표 하나만 놓인 장표
+            # 15 표만 있는 장표 — 도식도 차트도 없이 표 하나만 놓인 장표
             if not is_special:
                 tbl_h = sum(b.h for b in bs if b.kind == "표")
                 share = tbl_h / (BODY_BOTTOM - body_top)
                 if tbl_h and not raw.count(CHART_URI) and share > TABLE_DOMINANT:
                     table_only.append(f"{n}({share:.0%})")
 
-            # 14 각주 과다 — 단위·출처는 한 줄로 합치고, 각주는 오독 위험이 있을 때만
+            # 13 각주 과다 — 단위·출처는 한 줄로 합치고, 각주는 오독 위험이 있을 때만
             if not is_special:
                 foot = small_gray_texts(tree)
                 if len(foot) >= 3:
@@ -392,7 +396,7 @@ def check(path, mode, special, strict, palette='mono'):
                     callout_slides.append(n)
                 body_slides.append(n)
 
-            # 15 문안 — 걷어낼 표현
+            # 14 문안 — 걷어낼 표현
             # 문단 단위로 이어 붙인다 — 런 경계에 공백을 넣으면 '정합 시간'이 '~ 시'로 오탐된다.
             # 헤드(타이틀·메시지)는 한자어 명사구와 '~ 시'를 표준으로 쓰므로 검사에서 뺀다.
             head_str = {b.text for b in bs if b.text and
@@ -404,7 +408,7 @@ def check(path, mode, special, strict, palette='mono'):
                 if hit:
                     warns.append(f"{tag} 문안: '{hit.group(0).strip()}' — {why}")
 
-        # 13 차트 파트
+        # 12 차트 파트
         for name in (n for n in z.namelist() if re.fullmatch(r"ppt/charts/chart\d+\.xml", n)):
             raw = z.read(name).decode("utf-8")
             short = name.split("/")[-1]
@@ -426,7 +430,7 @@ def check(path, mode, special, strict, palette='mono'):
                     fails.append(f"[{short}] <c:dPt>가 <c:dLbls> 뒤에 있다 (ISO 순서 위반) — postprocess.py 를 실행할 것")
                     break
 
-    # 16b 표 편중 — 표만 있는 장표가 절반을 넘으면 표현을 바꿀 신호다
+    # 15b 표 편중 — 표만 있는 장표가 절반을 넘으면 표현을 바꿀 신호다
     if len(body_slides) >= 4 and len(table_only) > 0.5 * len(body_slides):
         warns.append(f"[deck] 표가 본문의 {TABLE_DOMINANT:.0%}를 넘게 차지한 장표가 {len(body_slides)}장 중 "
                      f"{len(table_only)}장 — references/diagrams.md 를 보고 도식·차트로 바꿀 것 "
@@ -435,7 +439,7 @@ def check(path, mode, special, strict, palette='mono'):
         warns.append(f"[deck] 표가 본문 대부분을 차지한 장표: {', '.join(table_only)} — "
                      f"도식·차트로 바꿀 여지가 있는지 볼 것")
 
-    # 14b 결론 밴드 남용 — 장(章)의 마지막 장표에만 다는 것이 원칙
+    # 13b 결론 밴드 남용 — 장(章)의 마지막 장표에만 다는 것이 원칙
     if len(body_slides) >= 4 and len(callout_slides) > 0.6 * len(body_slides):
         warns.append(f"[deck] 결론 밴드가 본문 {len(body_slides)}장 중 {len(callout_slides)}장에 붙어 있다 — "
                      f"장(章)의 마지막 장표에만 달 것 (현재: {', '.join(str(x) for x in callout_slides)})")

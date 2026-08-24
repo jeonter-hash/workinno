@@ -48,7 +48,7 @@ description: 한국표준협회(KSA) 발표용 PPT를 만드는 스킬. A4 가�
 ## 2. 만드는 법
 
 ```bash
-SK=$(dirname $(find / -name SKILL.md -path '*PRESENT_PPT*' 2>/dev/null | head -1))   # 스킬 폴더
+SK=<이 스킬 폴더 경로>          # 로컬은 ~/.claude/skills/PRESENT_PPT, 코워크는 마운트된 위치
 mkdir build && cp $SK/assets/{ksa_mono.js,example_deck.js,photo_placeholder.png} build/ && cd build
 node example_deck.js deck.pptx                      # 예시 11장 — 복사해 내용만 교체
 python3 $SK/scripts/postprocess.py deck.pptx        # 필수 — 아래 설명
@@ -166,7 +166,7 @@ B.comboChart(s, { x:M, y:BT, w:CW, h:1.6, rightAxis:true, unit:'시간', unit2:'
 ### 헤드 — 타이틀 + 메시지
 
 **`references/headline.md`가 최종 권한이다.** 헤드를 쓸 때는 반드시 그 파일을 읽는다.
-실제 컨설팅 보고서 87건에서 뽑은 문형과 예문 49개가 유형별로 정리돼 있다.
+실제 컨설팅 보고서 87건에서 뽑은 문형과 예문 36개가 유형별로 정리돼 있다.
 
 ```js
 B.head(s, { title:'업무별 시간 구조 및 절감 여력',
@@ -207,7 +207,7 @@ soffice --headless --convert-to pdf deck.pptx && pdftoppm -png -r 78 deck.pdf p 
 
 `--palette accent`를 주면 강조 2색을 허용하고, 그 밖의 유채색은 여전히 잡는다.
 
-점검기가 새로 잡는 것 — **표 편중**(표가 본문 65%를 넘게 차지한 장표), **표와 도형의 겹침**(네이티브 표는 graphicFrame이라 글자 겹침 규칙에 안 걸린다), **각주 과다**(잔글씨 3줄 이상), **결론 밴드 남용**(본문 장표 60% 초과), **문안**(이중 피동·번역투·공문 축약형).
+점검기가 새로 잡는 것 — **표 편중**(표가 본문 65%를 넘게 차지한 장표), **표와 도형의 겹침**(네이티브 표는 graphicFrame이라 글자 겹침 규칙에 안 걸린다), **각주 과다**(잔글씨 3줄 이상), **결론 밴드 남용**(본문 장표 60% 초과), **문안**(이중 피동·상투구·수치 없는 평가어 — 헤드 존은 검사에서 뺀다).
 
 **렌더 QA는 반드시 한다.** 좌표 점검만으로는 글자 넘침·요소 겹침을 못 잡는다. QA 머신에 맑은 고딕이 없으면 대체 폰트로 그려져 글줄 폭 판정이 부정확하므로, 폭이 애매하면 실물 PowerPoint 기준으로 판단하되 서체는 바꾸지 않는다.
 

@@ -181,9 +181,6 @@ function head(s, o, opt={}){
     valign:'top', margin:0, lineSpacingMultiple:1.30 });
   return s;
 }
-/** 옛 코드 호환 — 메시지만 따로 그린다. 새 장표는 head({title, message})를 쓸 것. */
-const sub = (s,t) => s.addText(t, { ...zones(s._T).msg, fontFace:FONT, fontSize:s._T.sub, color:K.g1,
-  valign:'top', margin:0, lineSpacingMultiple:1.30 });
 
 /* ── 기본 조각 ──────────────────────────────────────────── */
 /** 본문 벽 검사 — 본문 상단은 모드마다 다르므로 슬라이드에서 읽는다 */
@@ -1041,7 +1038,7 @@ function toc(deck, o){
 }
 
 module.exports = { P, K, FONT, TEXT_MIN, W, H, M, CW, BB, TITLE_Y, TITLE_MAX, Z, zones, col, cx, cw, split, MODE,
-  textW, lines, needH, PALETTE, createDeck, frame, head, sub, guard, box, txt,
+  textW, lines, needH, PALETTE, createDeck, head, guard, box, txt,
   underline, hr, sectionTitle, kpiRow, table, tableNative, bullets, chevrons, waterfall, tree, matrix,
   gantt, layers, callout, panel, footnote, source, pill, cover, coverPlain, toc,
   barChart, lineChart, pieChart, comboChart, chartNote, seriesRamp, SERIES_MAX,
