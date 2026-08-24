@@ -16,7 +16,6 @@ description: 한국표준협회(KSA) 모노톤 보고서용 PPT를 만드는 스
 | **판형** | A4 가로(10.8333"×7.5")만. 16:9·4:3 요청은 거절하고 A4 가로로 제안 |
 | **서체** | 맑은 고딕만. 대체 폰트 제안도 하지 않는다 |
 | **색** | **무채색만.** 유채색을 넣지 않는다 |
-| **로고** | 기본 표지(사진)와 본문에는 **넣지 않는다.** 격자 표지(`coverPlain`)를 쓸 때만 들어간다 |
 | **데이터** | 근거 없는 수치를 지어내지 않는다. 표에는 출처·산식·각주를 붙인다 |
 | **발표덱과의 구분** | 화면에 띄우고 말로 설명하는 자료라면 PRESENT_PPT를 쓴다 |
 
@@ -53,7 +52,7 @@ description: 한국표준협회(KSA) 모노톤 보고서용 PPT를 만드는 스
 
 ```bash
 SK=$(dirname $(find / -name SKILL.md -path '*REPORT_PPT*' 2>/dev/null | head -1))   # 스킬 폴더
-mkdir build && cp $SK/assets/{ksa_mono.js,example_deck.js,ksa_logo.jpg} build/ && cd build
+mkdir build && cp $SK/assets/{ksa_mono.js,example_deck.js,photo_placeholder.png} build/ && cd build
 node example_deck.js deck.pptx                      # example_deck.js를 복사해 내용만 교체
 python3 $SK/scripts/postprocess.py deck.pptx        # 필수 — 아래 설명
 python3 $SK/scripts/check_layout.py deck.pptx --mode report --special 1
@@ -222,7 +221,7 @@ python3 /mnt/skills/public/pptx/scripts/office/validate.py deck.pptx
 soffice --headless --convert-to pdf deck.pptx && pdftoppm -png -r 78 deck.pdf p   # 전 장표 육안
 ```
 
-점검기가 잡는 것 — A4 판형, 맑은 고딕 외 폰트(표·차트 내부까지), 8.5pt 미만, 슬라이드 밖 이탈, 본문 벽 침범(**네이티브 표는 `<a:tr h>` 합산으로 실제 높이 계산** — pptxgenjs는 표 높이를 1.0"로 고정 기재하므로 그 값을 믿으면 안 된다), 5존 앵커 이탈(모드별), 하단 30% 공백, **본문 빈 띠**(0.45" 초과 — 표를 늘려 채우라는 신호), **요소 겹침**(글자가 도형에 30% 이상 가림, **네이티브 표가 콜아웃·밴드와 겹침**), **의도하지 않은 검은 윤곽선**, 흐린 글자색, 유채색, 로고 위치·비율(격자 표지), 이모지, 차트 구조 결함, **헤드 문법**(타이틀 길이·메시지 종결·줄 수), **표 편중**.
+점검기가 잡는 것 — A4 판형, 맑은 고딕 외 폰트(표·차트 내부까지), 8.5pt 미만, 슬라이드 밖 이탈, 본문 벽 침범(**네이티브 표는 `<a:tr h>` 합산으로 실제 높이 계산** — pptxgenjs는 표 높이를 1.0"로 고정 기재하므로 그 값을 믿으면 안 된다), 5존 앵커 이탈(모드별), 하단 30% 공백, **본문 빈 띠**(0.45" 초과 — 표를 늘려 채우라는 신호), **요소 겹침**(글자가 도형에 30% 이상 가림, **네이티브 표가 콜아웃·밴드와 겹침**), **의도하지 않은 검은 윤곽선**, 흐린 글자색, 유채색, 이모지, 차트 구조 결함, **헤드 문법**(타이틀 길이·메시지 종결·줄 수), **표 편중**.
 
 점검기가 새로 잡는 것 — **표 편중**(표가 본문 65%를 넘게 차지한 장표), **표와 도형의 겹침**(네이티브 표는 graphicFrame이라 글자 겹침 규칙에 안 걸린다), **각주 과다**(잔글씨 3줄 이상), **결론 밴드 남용**(본문 장표 60% 초과), **문안**(이중 피동·번역투·공문 축약형).
 
@@ -243,5 +242,5 @@ soffice --headless --convert-to pdf deck.pptx && pdftoppm -png -r 78 deck.pdf p 
 ## 9. 파일 규칙
 
 - 산출 파일명: `<보고서명>_v<n>.pptx`
-- 동봉 자산(로고·모듈)은 수정하지 않는다 — 사본으로 작업
+- 동봉 자산(모듈·자리표시)은 수정하지 않는다 — 사본으로 작업
 - 차트·표 텍스트는 라이브 텍스트로 유지한다

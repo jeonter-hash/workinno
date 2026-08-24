@@ -44,7 +44,6 @@ const TITLE_MAX = 30;         // 타이틀 글자 수 상한 (1줄)
 const Z = {
   chapter:{ x:M, y:0.40, w:6.2, h:0.30 },
   rule:   { y:0.82 },
-  logo:   { y:0.44, h:0.24 },
   foot:   { x:M, y:7.05, w:CW, h:0.25 },
 };
 /** 모드별 헤드·본문 존 */
@@ -93,26 +92,6 @@ const lines = (str, pt, boxW) => Math.max(1, Math.ceil(textW(str,pt)/(boxW-0.06)
 /** 글자가 들어갈 최소 높이(인치) */
 const needH = (str, pt, boxW, lh=1.3) => +(lines(str,pt,boxW)*pt*lh/72 + 0.06).toFixed(3);
 
-/* ── 이미지 크기(로고 비율 자동) ────────────────────────── */
-function imgSize(f){
-  try{ const b=fs.readFileSync(f);
-    if (b.slice(1,4).toString()==='PNG') return { w:b.readUInt32BE(16), h:b.readUInt32BE(20) };
-    if (b[0]===0xff&&b[1]===0xd8){ let i=2;
-      while(i<b.length-9){ if(b[i]!==0xff){i++;continue;} const m=b[i+1];
-        if(m>=0xc0&&m<=0xcf&&![0xc4,0xc8,0xcc].includes(m)) return { w:b.readUInt16BE(i+7), h:b.readUInt16BE(i+5) };
-        if(m===0xd8||m===0xd9||(m>=0xd0&&m<=0xd7)){i+=2;continue;} i+=2+b.readUInt16BE(i+2); } }
-  }catch(e){}
-  return null;
-}
-function findLogo(explicit){
-  if (explicit && fs.existsSync(explicit)) return explicit;
-  const cands=['ksa_logo.png','ksa_logo.jpg'];
-  const dirs=[__dirname, path.join(__dirname,'assets'), process.cwd()];
-  for(const d of dirs) for(const n of cands){ const p=path.join(d,n); if(fs.existsSync(p)) return p; }
-  return null;
-}
-
-/* ── 덱 ─────────────────────────────────────────────────── */
 function createDeck(o={}){
   // o.docTitle — 본문 헤더 우측에 반복 표기할 문서 제목 (없으면 o.title)
   // o.dense    — 보고서용에서만. 표가 20행에 이르는 등 내용이 많을 때 한 단계 낮춘 밀도를 쓴다.
@@ -140,8 +119,7 @@ function createDeck(o={}){
   pres.defineSlideMaster({ title:'KSA_TITLE', background:{ color:K.w } });
   if (o.title) pres.title=o.title;
   if (o.author) pres.author=o.author;
-  const logo = findLogo(o.logo);
-  const deck = { pres, T, C, logo, page:0, bt:T.bt, BB, docTitle: o.docTitle || o.title || '',
+  const deck = { pres, T, C, page:0, bt:T.bt, BB, docTitle: o.docTitle || o.title || '',
     slide(opt={}){
       const s = pres.addSlide({ masterName:'KSA_BODY' }); s._T=T; s._C=C; s._deck=deck;
       deck.page += 1; s._page = opt.page==null? deck.page : opt.page;
@@ -164,15 +142,6 @@ function frame(s, o={}){
   // 헤더 헤어라인과 페이지 번호는 마스터가 그린다. 출처는 본문 안 caption/source로 붙인다.
   return s;
 }
-/** 로고를 우상단(오른쪽 여백 0.5")에 원본 비율로 배치 */
-function logoAt(s, o={}){
-  const d=s._deck; if(!d||!d.logo) return null;
-  const sz=imgSize(d.logo), h=o.h||Z.logo.h, w=sz? +(h*sz.w/sz.h).toFixed(4):1.22;
-  const x=o.x==null? +(W-M-w).toFixed(4) : o.x;
-  s.addImage({ path:d.logo, x, y:o.y==null?Z.logo.y:o.y, w, h, altText:'한국표준협회 로고' });
-  return { x, w, h };
-}
-
 /**
  * 헤드 — 타이틀과 메시지로 나눈다.
  *   head(s, { title:'업무별 시간 구조 및 절감 여력',
@@ -962,7 +931,6 @@ function coverPlain(deck, o){
     s.addShape('rect',{ x:gx+7*(cell+gap), y:gy+2*(cell+gap), w:cell, h:cell, fill:{color:C.acc}, line:{type:'none'} });
   s.addShape('rect',{ x:0, y:2.10, w:5.55, h:2.55, fill:{color:K.w}, line:{type:'none'} });   // 제목 자리 확보
   s.addShape('rect',{ x:0, y:6.35, w:W,    h:1.15, fill:{color:K.w}, line:{type:'none'} });   // 하단 정보 자리
-  logoAt(s,{});
   txt(s, o.org||'한국표준협회', { x:M, y:0.40, w:5, h:0.30, sz:12, b:true, c:K.g2, valign:'middle' });
   s.addShape('rect',{ x:M, y:2.45, w:0.10, h:1.55, fill:{color:C.acc}, line:{type:'none'} });
   txt(s, o.title, { x:M+0.32, y:2.42, w:4.6, h:1.40, sz:38, b:true, lh:1.15 });
@@ -1073,8 +1041,8 @@ function toc(deck, o){
 }
 
 module.exports = { P, K, FONT, TEXT_MIN, W, H, M, CW, BB, TITLE_Y, TITLE_MAX, Z, zones, col, cx, cw, split, MODE,
-  textW, lines, needH, PALETTE, imgSize, findLogo, createDeck, frame, head, sub, guard, box, txt,
-  underline, hr, logoAt, sectionTitle, kpiRow, table, tableNative, bullets, chevrons, waterfall, tree, matrix,
+  textW, lines, needH, PALETTE, createDeck, frame, head, sub, guard, box, txt,
+  underline, hr, sectionTitle, kpiRow, table, tableNative, bullets, chevrons, waterfall, tree, matrix,
   gantt, layers, callout, panel, footnote, source, pill, cover, coverPlain, toc,
   barChart, lineChart, pieChart, comboChart, chartNote, seriesRamp, SERIES_MAX,
   venn, hubSpoke, cycle, pyramid, steps, harvey, harveyBall, causeEffect, HARVEY_STEPS, onTone };

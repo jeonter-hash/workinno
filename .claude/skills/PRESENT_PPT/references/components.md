@@ -59,7 +59,6 @@ await deck.save('out.pptx');
 | `underline(s, text, pt, {x,y})` | **글자 폭에 맞춘** 밑줄 |
 | `head(s, {title, message})` | **헤드.** 타이틀(명사구 30자·1줄) + 메시지(명사형 개조식 2줄까지). 문법과 예문은 `references/headline.md` |
 | `sectionTitle(s, t, {x,y,w})` | 소제목 + 먹 구분선 |
-| `logoAt(s, {})` | 로고를 우상단에 원본 비율로. **격자 표지(`coverPlain`) 전용** — 사진 표지와 본문에는 넣지 않는다 |
 | `source(s, t, {x,y,w})` | 출처 — 도식·표 **바로 아래**에 붙인다. 푸터에 두지 않는다. **단위와 한 줄로 합친다**: `단위: 억 원 / 출처: …` |
 | `footnote(s, t, {x,y,w})` | 각주 — **오독 위험이 있을 때만.** 한 장표에 3줄 이상이면 점검기가 경고한다 |
 
@@ -82,7 +81,7 @@ B.panel(s, { x:B.cx(0), y:2.46, w:B.cw(6), h:1.86, title:'추진 배경', items:
 
 | 호출 | 설명 |
 |---|---|
-| `cover(deck, {org, title, date, by, photos, panel})` | **사진 표지.** 사선 4분할 띠 + 먹 패널 + 대형 사진. 로고 없음. `photos` 생략 시 자리표시. 사진은 각각 독립 도형이라 PowerPoint에서 바꿔 끼운다 |
+| `cover(deck, {org, title, date, by, photos, panel})` | **사진 표지.** 사선 4분할 띠 + 먹 패널 + 대형 사진. `photos` 생략 시 자리표시. 사진은 각각 독립 도형이라 PowerPoint에서 바꿔 끼운다 |
 | `coverPlain(deck, {title, subtitle, org, team, date})` | 격자 도형 표지(사진을 쓰지 않을 때) |
 | `toc(deck, {items})` | 목차. `items[i]`가 `{n,t,p}`면 장, `{t,p}`면 세부 항목. 점선 리더 + 쪽번호 |
 

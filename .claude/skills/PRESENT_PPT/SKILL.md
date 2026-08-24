@@ -16,7 +16,6 @@ description: 한국표준협회(KSA) 발표용 PPT를 만드는 스킬. A4 가�
 | **판형** | A4 가로(10.8333"×7.5")만. 16:9·4:3 요청은 거절하고 A4 가로로 제안 |
 | **서체** | 맑은 고딕만. 대체 폰트 제안도 하지 않는다 |
 | **색** | 무채색 뼈대 + KSA 강조 2색(`palette:'accent'`가 기본). 구조색 네이비 `#1F3864`, 강조색 레드 `#C4303C`는 **장표당 한 곳만** |
-| **로고** | 기본 표지(사진)와 본문에는 **넣지 않는다.** 격자 표지(`coverPlain`)를 쓸 때만 `assets/ksa_logo.jpg`가 들어간다 |
 | **데이터** | 근거 없는 수치를 지어내지 않는다. 데이터 도식에는 단위·출처를 한 줄로 붙인다 |
 | **보고서와의 구분** | 읽는 문서(표·각주 중심, 작은 글씨)라면 REPORT_PPT를 쓴다 |
 
@@ -50,7 +49,7 @@ description: 한국표준협회(KSA) 발표용 PPT를 만드는 스킬. A4 가�
 
 ```bash
 SK=$(dirname $(find / -name SKILL.md -path '*PRESENT_PPT*' 2>/dev/null | head -1))   # 스킬 폴더
-mkdir build && cp $SK/assets/{ksa_mono.js,example_deck.js,ksa_logo.jpg} build/ && cd build
+mkdir build && cp $SK/assets/{ksa_mono.js,example_deck.js,photo_placeholder.png} build/ && cd build
 node example_deck.js deck.pptx                      # 예시 11장 — 복사해 내용만 교체
 python3 $SK/scripts/postprocess.py deck.pptx        # 필수 — 아래 설명
 python3 $SK/scripts/check_layout.py deck.pptx --mode present --special 1,12
@@ -204,7 +203,7 @@ python3 /mnt/skills/public/pptx/scripts/office/validate.py deck.pptx
 soffice --headless --convert-to pdf deck.pptx && pdftoppm -png -r 78 deck.pdf p   # 전 장표 육안
 ```
 
-점검기가 잡는 것 — A4 판형, 맑은 고딕 외 폰트(표·차트 내부까지), 9.5pt 미만, 슬라이드 밖 이탈, 본문 벽 침범(**네이티브 표는 `<a:tr h>` 합산으로 실제 높이 계산**), 5존 앵커 이탈(모드별), 하단 30% 공백, **본문 빈 띠**(0.45" 초과 — 도형·표를 늘려 채우라는 신호), **요소 겹침**(글자가 도형에 30% 이상 가림, **네이티브 표가 콜아웃·밴드와 겹침**), **의도하지 않은 검은 윤곽선**, 흐린 글자색, 팔레트 밖 색, 로고 위치·비율(격자 표지), 이모지, 차트 구조 결함, **헤드 문법**(타이틀 길이·메시지 종결·줄 수), **표 편중**.
+점검기가 잡는 것 — A4 판형, 맑은 고딕 외 폰트(표·차트 내부까지), 9.5pt 미만, 슬라이드 밖 이탈, 본문 벽 침범(**네이티브 표는 `<a:tr h>` 합산으로 실제 높이 계산**), 5존 앵커 이탈(모드별), 하단 30% 공백, **본문 빈 띠**(0.45" 초과 — 도형·표를 늘려 채우라는 신호), **요소 겹침**(글자가 도형에 30% 이상 가림, **네이티브 표가 콜아웃·밴드와 겹침**), **의도하지 않은 검은 윤곽선**, 흐린 글자색, 팔레트 밖 색, 이모지, 차트 구조 결함, **헤드 문법**(타이틀 길이·메시지 종결·줄 수), **표 편중**.
 
 `--palette accent`를 주면 강조 2색을 허용하고, 그 밖의 유채색은 여전히 잡는다.
 
@@ -226,5 +225,5 @@ soffice --headless --convert-to pdf deck.pptx && pdftoppm -png -r 78 deck.pdf p 
 ## 9. 파일 규칙
 
 - 산출 파일명: `<발표명>_v<n>.pptx`
-- 동봉 자산(로고·모듈)은 수정하지 않는다 — 사본으로 작업
+- 동봉 자산(모듈·자리표시)은 수정하지 않는다 — 사본으로 작업
 - 차트·표 텍스트는 라이브 텍스트로 유지한다

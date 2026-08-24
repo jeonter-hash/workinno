@@ -14,7 +14,6 @@
    8  의도하지 않은 검은 윤곽선 — pptxgenjs가 line:{width:0}을 1pt #333333으로 그린다
    9  흰 배경 위 너무 흐린 글자 (#9E9E9E보다 밝은 색)
   10  무채색 팔레트 이탈 (유채색 사용)
-  11  로고 위치·비율·로고 뒤 도형
   12  이모지
   13  차트 구조 결함 — 미선언 <c:axId>, <c:dPt>/<c:dLbls> 순서 (PowerPoint 복구 대화상자 원인)
   14  각주 과다 · 결론 밴드 남용 — 잔글씨 3줄 이상, 결론 밴드가 본문 장표 60% 초과
@@ -57,7 +56,6 @@ def ends_nominal(msg: str) -> bool:
 MSG_LINE = {"present": 54, "report": 59}      # 한 줄에 들어가는 한글 글자 수
 TITLE_MAX = 30
 TOL = 0.02
-LOGO_H, LOGO_Y, LOGO_RIGHT, LOGO_MAX_W = 0.24, 0.44, SLIDE_W - 0.5, 1.9
 FONT_OK = ("맑은 고딕", "Malgun Gothic")
 MIN_PT = {"present": 9.5, "report": 8.5}   # 보고서 dense 모드까지 허용, 8.5pt가 절대 하한
 ASSETS = pathlib.Path(__file__).resolve().parent.parent / "assets"
@@ -161,32 +159,6 @@ def is_gray(rgb: str) -> bool:
     return max(r, g, b) - min(r, g, b) <= 8
 
 
-def image_ratio(p):
-    try:
-        b = open(p, "rb").read()
-    except OSError:
-        return None
-    if b[1:4] == b"PNG":
-        w, h = int.from_bytes(b[16:20], "big"), int.from_bytes(b[20:24], "big")
-        return w / h if h else None
-    if b[:2] == b"\xff\xd8":
-        i = 2
-        while i < len(b) - 9:
-            if b[i] != 0xFF:
-                i += 1
-                continue
-            m = b[i + 1]
-            if 0xC0 <= m <= 0xCF and m not in (0xC4, 0xC8, 0xCC):
-                h = int.from_bytes(b[i + 5:i + 7], "big")
-                w = int.from_bytes(b[i + 7:i + 9], "big")
-                return w / h if h else None
-            if m in (0xD8, 0xD9) or 0xD0 <= m <= 0xD7:
-                i += 2
-                continue
-            i += 2 + int.from_bytes(b[i + 2:i + 4], "big")
-    return None
-
-
 # ── 잔글씨(각주·출처)와 결론 밴드 판별 ────────────────────────
 FOOT_MAX_PT = 950          # 9.5pt 이하 + 회색이면 각주·출처로 본다
 FOOT_GRAY = {"6B6B6B", "9E9E9E"}
@@ -238,14 +210,6 @@ def head_texts(bs, z):
     return title, msg
 
 
-def logo_asset():
-    for name in ("ksa_logo.png", "ksa_logo.jpg"):
-        p = ASSETS / name
-        if p.exists():
-            return p
-    return None
-
-
 def check(path, mode, special, strict, palette='mono'):
     fails, warns = [], []
     body_slides, callout_slides = [], []
@@ -255,8 +219,6 @@ def check(path, mode, special, strict, palette='mono'):
     msg_bottom = zone["본문"] - 0.10        # 메시지 글자 하단과 본문 사이의 완충 구간
     min_pt = MIN_PT[mode]
     allowed_chroma = ACCENT if palette == 'accent' else set()
-    asset = logo_asset()
-    src_ratio = image_ratio(asset) if asset else None
 
     with zipfile.ZipFile(path) as z:
         pres = ET.fromstring(z.read("ppt/presentation.xml"))
@@ -407,23 +369,6 @@ def check(path, mode, special, strict, palette='mono'):
                 cu = c.upper()
                 if not is_gray(cu) and cu not in allowed_chroma:
                     warns.append(f"{tag} 팔레트 밖 색 #{cu}")
-
-            # 11 로고
-            pics = [b for b in bs if b.kind == "pic"]
-            logo = [b for b in pics if abs(b.y - LOGO_Y) <= 0.10 and b.x > SLIDE_W / 2 and 0.10 <= b.h <= LOGO_H + 0.06]
-            # 이 체계는 로고를 쓰지 않는다(표지는 사진). logoAt()으로 넣었을 때만 위치·비율을 본다.
-            for b in logo:
-                if abs((b.x + b.w) - LOGO_RIGHT) > 0.03:
-                    fails.append(f'{tag} 로고 우측 끝 {b.x + b.w:.3f}" — 오른쪽 여백 0.5"(={LOGO_RIGHT:.3f}")로 맞출 것')
-                if b.w > LOGO_MAX_W + TOL:
-                    fails.append(f'{tag} 로고 폭 {b.w:.3f}" — 상한 {LOGO_MAX_W}"')
-                if src_ratio and abs(b.w / b.h - src_ratio) > 0.06:
-                    fails.append(f'{tag} 로고 종횡비 변형: {b.w:.3f}×{b.h:.3f}" (원본 {src_ratio:.2f})')
-                for o in bs:
-                    if o is b or o.kind not in ("sp", "cxnSp"):
-                        continue
-                    if o.x < b.x + b.w and o.x + o.w > b.x and o.y < b.y + b.h and o.bottom > b.y:
-                        fails.append(f"{tag} 로고 뒤/위 도형 — 배경 박스·밑줄·프레임은 디펙트: {o}")
 
             # 12 이모지
             for t in tree.iter(f"{A}t"):

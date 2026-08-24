@@ -26,7 +26,6 @@ claude.ai·Cowork 웹이면 스킬 관리 화면에서 이 zip을 그대로 올�
 | Node.js + `pptxgenjs` | 슬라이드 생성. pptx 스킬 환경에는 이미 설치돼 있다 |
 | Python 3 | 후처리·점검 스크립트. **표준 라이브러리만** 쓴다 |
 | 맑은 고딕 | 완성 파일을 여는 PC에 필요(Windows 기본). 없는 환경엔 PDF로 전달 |
-| KSA 로고 | `assets/ksa_logo.jpg`로 포함. 격자 표지(`coverPlain`)에서만 쓴다 |
 | 밀도 | 기본 본문 9.5pt. 20행 표처럼 많으면 `createDeck({mode:'report', dense:true})`로 9pt(한 장 13행) |
 
 ## 3. 사용법 — 말로 시킨다
@@ -40,7 +39,7 @@ claude.ai·Cowork 웹이면 스킬 관리 화면에서 이 zip을 그대로 올�
 
 ```bash
 SK=~/.claude/skills/REPORT_PPT
-mkdir build && cp $SK/assets/{ksa_mono.js,example_deck.js,ksa_logo.jpg} build/ && cd build
+mkdir build && cp $SK/assets/{ksa_mono.js,example_deck.js,photo_placeholder.png} build/ && cd build
 node example_deck.js deck.pptx                        # 보고서용 13장 예시 생성
 python3 $SK/scripts/postprocess.py deck.pptx          # 필수
 python3 $SK/scripts/check_layout.py deck.pptx --mode report --special 1
@@ -74,7 +73,6 @@ python3 $SK/scripts/check_layout.py deck.pptx --mode report --special 1
 | `references/components.md` | 컴포넌트 API |
 | `assets/ksa_mono.js` | 공용 모듈(두 스킬 동일) |
 | `assets/example_deck.js` | 13장 예시 |
-| `assets/ksa_logo.jpg` | 한국표준협회 워드마크 |
 | `scripts/postprocess.py` | 차트 결함 보정(필수) |
 | `scripts/check_layout.py` | 자동 점검 |
 
