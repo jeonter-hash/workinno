@@ -125,6 +125,30 @@ def shear_cover(text):
     return PIC_RE.sub(one, text), n
 
 
+
+FONT_OK = "맑은 고딕"
+FACE_RE = re.compile(r"<a:(latin|ea|cs) typeface=\"([^\"]+)\"")
+
+
+def fix_chart_font(text):
+    """차트 파트의 다른 서체를 맑은 고딕으로 바꾼다.
+
+    pptxgenjs는 옵션으로 덮지 못하는 자리(축 제목·보조축 등)에 Arial 18pt를 박아 넣는다.
+    옵션을 하나씩 채워 넣기보다 여기서 일괄로 고치는 편이 확실하다.
+    """
+    n = 0
+
+    def one(m):
+        nonlocal n
+        tag, face = m.group(1), m.group(2)
+        if face.startswith("+") or face.startswith(FONT_OK):
+            return m.group(0)
+        n += 1
+        return f'<a:{tag} typeface="{FONT_OK}"'
+
+    return FACE_RE.sub(one, text), n
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("pptx")
@@ -136,7 +160,7 @@ def main():
         return 2
     dst = Path(args.out) if args.out else src
 
-    ea = ax = dpt = shear = 0
+    ea = ax = dpt = shear = face = 0
     tmp = Path(tempfile.mkdtemp()) / "out.pptx"
     with zipfile.ZipFile(src) as zin, zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zout:
         for item in zin.infolist():
@@ -152,12 +176,15 @@ def main():
                 text, a = inject_ea(text)
                 text, b = fix_axes(text)
                 text, c = fix_ser_order(text)
-                ea, ax, dpt = ea + a, ax + b, dpt + c
-                if a or b or c:
+                text, d = fix_chart_font(text)
+                ea, ax, dpt, face = ea + a, ax + b, dpt + c, face + d
+                if a or b or c or d:
                     data = text.encode("utf-8")
             zout.writestr(item, data)
     shutil.move(str(tmp), str(dst))
 
+    if face:
+        print(f"차트 서체 {face}곳을 맑은 고딕으로 교체")
     if shear:
         print(f"표지 띠 사진 {shear}장을 평행사변형으로 변경")
     if ea:
@@ -166,7 +193,7 @@ def main():
         print(f"미선언 축 참조(<c:axId>) {ax}개 제거 — PowerPoint 손상 경고 원인")
     if dpt:
         print(f"<c:dPt> {dpt}개를 <c:dLbls> 앞으로 이동 (ISO 순서)")
-    if not (ea or ax or dpt or shear):
+    if not (ea or ax or dpt or shear or face):
         print("차트 파트에 고칠 것이 없다")
     print(f"→ {dst}")
     return 0

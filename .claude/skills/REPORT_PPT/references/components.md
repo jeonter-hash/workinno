@@ -110,6 +110,21 @@ B.panel(s, { x:B.cx(0), y:2.46, w:B.cw(6), h:1.86, title:'추진 배경', items:
 | `pill(s, t, {x,y,w,h,dark})` | 태그 |
 | `footnote(s, t, {x,y,w})` | 각주 — 오독 위험이 있을 때만 |
 
+## 차트
+
+무채색이므로 **계열을 명도로만 구분하고 5개까지**다. 넘으면 예외를 던진다.
+
+| 호출 | 설명 |
+|---|---|
+| `barChart(s, {x,y,w,h,cats,values \| series,horizontal,stacked,max})` | 막대. `horizontal`이면 가로(순위가 위에서 아래로 정렬됨), `stacked`면 누적 |
+| `lineChart(s, {x,y,w,h,cats,series,max,marker})` | 선. 추세용이라 값 축을 표시하고 데이터 레이블은 끈다 |
+| `pieChart(s, {x,y,w,h,labels,values,hole,percent})` | 원. `hole`을 주면 도넛. 레이블은 조각 바깥, 범례는 오른쪽 |
+| `comboChart(s, {x,y,w,h,cats,bars,lines,rightAxis,unit,unit2})` | 혼합. 막대는 왼쪽 축, 선은 오른쪽 축 |
+| `chartNote(s, t, {x,y,w})` | 차트 아래 단위·출처 한 줄 |
+
+모두 `{ bottom }`을 돌려주므로 그 값으로 다음 요소의 y를 잡는다.
+**차트를 만들면 `postprocess.py`를 반드시 돌린다.**
+
 ## 자주 쓰는 밴드
 
 ```js

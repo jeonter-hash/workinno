@@ -345,6 +345,141 @@ function bullets(s, items, o){
   s.addText(runs, { x:o.x, y:o.y, w:o.w, h:o.h, fontFace:FONT, fontSize:o.sz||T.body, color:K.ink,
     valign:'top', margin:0, lineSpacingMultiple:o.lh||T.lh, paraSpaceAfter:o.space==null?4:o.space });
 }
+/* ── 차트 ────────────────────────────────────────────────
+ * 수치는 표로 늘어놓기보다 차트로 보이는 편이 빠르다. 다만 이 체계는 무채색이므로
+ * **계열을 명도로만 구분한다.** 색이 없으니 계열이 다섯을 넘으면 읽히지 않아 막는다.
+ *
+ * 공통 규칙
+ *   - 격자선을 그리지 않는다. 값은 데이터 레이블로 직접 붙인다
+ *   - 축선은 헤어라인(#C7C7C7), 축 글자는 cap 크기
+ *   - 계열이 하나면 범례를 두지 않는다
+ *   - hi 로 지정한 계열·항목만 먹(또는 강조색)으로 반전한다
+ *
+ * 차트를 만든 뒤에는 **반드시 scripts/postprocess.py 를 돌린다.**
+ * pptxgenjs가 선언되지 않은 <c:axId>를 쓰고 한글 폰트(<a:ea>)를 빠뜨려
+ * PowerPoint가 복구 대화상자를 띄운다.
+ */
+const SERIES_MAX = 5;
+const seriesRamp = C => [C.dark, C.mid, K.g3, K.g4, K.g5];
+
+function chartFrame(s, o, what){
+  guard(s, o.y, o.h, what);
+  if (o.x + o.w > W - M + 0.005)
+    throw new Error(`${what} 우측 끝 ${(o.x+o.w).toFixed(3)}"가 여백을 넘음 — 폭은 ${(W-M-o.x).toFixed(3)}" 이하`);
+}
+/** 축·레이블·범례 공통 서식 */
+function chartOpts(s, o, n){
+  const T = s._T;
+  return {
+    x:o.x, y:o.y, w:o.w, h:o.h,
+    chartColors: o.colors || seriesRamp(s._C).slice(0, n),
+    showLegend: o.legend == null ? n > 1 : o.legend,
+    legendPos: o.legendPos || 'b', legendFontFace: FONT, legendFontSize: T.cap, legendColor: K.g2,
+    showValue: o.value == null ? true : o.value,
+    dataLabelFontFace: FONT, dataLabelFontSize: o.labelSize || T.cap, dataLabelColor: K.g1,
+    dataLabelPosition: o.labelPos || undefined,
+    ...(o.fmt ? { dataLabelFormatCode: o.fmt } : {}),
+    catAxisLabelFontFace: FONT, catAxisLabelFontSize: T.cap, catAxisLabelColor: K.g2,
+    valAxisLabelFontFace: FONT, valAxisLabelFontSize: T.cap, valAxisLabelColor: K.g2,
+    catAxisLineColor: K.g4, valAxisLineColor: K.g4,
+    valGridLine: { style:'none' }, catGridLine: { style:'none' },
+    valAxisHidden: o.valAxis == null ? true : !o.valAxis,   // 값은 레이블로 읽는다
+    border: { pt:0, color:K.w }, fill: K.w,
+    ...(o.max != null ? { valAxisMaxVal:o.max } : {}),
+    ...(o.min != null ? { valAxisMinVal:o.min } : {}),
+    ...(o.title ? { showTitle:true, title:o.title, titleFontFace:FONT,
+                    titleFontSize:s._T.h2, titleColor:K.ink, titleAlign:'left' } : {}),
+  };
+}
+function toSeries(o){
+  const ss = o.series || [{ name: o.name || '값', values: o.values }];
+  if (ss.length > SERIES_MAX)
+    throw new Error(`차트 계열이 ${ss.length}개 — 무채색은 명도로만 구분하므로 ${SERIES_MAX}개까지만 쓴다. `
+      + `계열을 묶거나 차트를 나눌 것`);
+  return ss.map(x => ({ name:x.name, labels:o.cats, values:x.values }));
+}
+
+/** 막대 — horizontal:true 면 가로막대. stacked:true 면 누적 */
+function barChart(s, o){
+  chartFrame(s, o, '막대 차트');
+  const data = toSeries(o);
+  s.addChart('bar', data, { ...chartOpts(s, o, data.length),
+    barDir: o.horizontal ? 'bar' : 'col',
+    // 가로막대는 PowerPoint가 첫 항목을 맨 아래에 놓는다 — 순위 차트가 뒤집히므로 되돌린다
+    ...(o.horizontal ? { catAxisOrientation:'maxMin' } : {}),
+    barGrouping: o.stacked ? 'stacked' : 'clustered',
+    barGapWidthPct: o.gap == null ? 55 : o.gap,
+    dataLabelPosition: o.stacked ? 'ctr' : (o.horizontal ? 'outEnd' : 'outEnd'),
+  });
+  return { bottom:+(o.y+o.h).toFixed(3) };
+}
+/** 선 — 추세. marker:false 면 표식 없음 */
+function lineChart(s, o){
+  chartFrame(s, o, '선 차트');
+  const data = toSeries(o);
+  s.addChart('line', data, { ...chartOpts(s, o, data.length),
+    lineSize: o.lineSize || 2.25,
+    lineDataSymbol: o.marker === false ? 'none' : (o.marker || 'circle'),
+    lineDataSymbolSize: o.markerSize || 6,
+    valAxisHidden: o.valAxis == null ? false : !o.valAxis,   // 추세는 축이 있어야 읽힌다
+    showValue: o.value == null ? false : o.value,
+  });
+  return { bottom:+(o.y+o.h).toFixed(3) };
+}
+/** 원 — hole 을 주면 도넛. 조각이 다섯을 넘으면 '기타'로 묶는다.
+ *  원은 상자의 **짧은 변**에 갇히므로 정사각형에 가까운 상자에 넣는다.
+ *  가로로 긴 상자에 넣을 때는 범례를 오른쪽에 두어(기본값) 원이 왼쪽 정사각형을 쓰게 한다. */
+function pieChart(s, o){
+  chartFrame(s, o, '원 차트');
+  if (o.labels.length > SERIES_MAX)
+    throw new Error(`원 차트 조각이 ${o.labels.length}개 — 명도로 구분하려면 ${SERIES_MAX}개까지. `
+      + `작은 조각은 '기타'로 묶을 것`);
+  const data = [{ name:o.name || '구성', labels:o.labels, values:o.values }];
+  const pct = o.percent == null ? true : o.percent;   // 구성비가 기본 — 값과 비율을 함께 찍지 않는다
+  s.addChart(o.hole ? 'doughnut' : 'pie', data, { ...chartOpts(s, o, o.labels.length),
+    holeSize: o.hole || undefined,
+    // 조각 위에 찍으면 먹 조각에서 글자가 묻힌다 — 바깥에 둔다(도넛은 가운데가 비어 안쪽이 안전)
+    dataLabelPosition: o.hole ? 'ctr' : (o.labelPos || 'outEnd'),
+    showPercent: pct, showValue: pct ? false : (o.value == null ? true : o.value),
+    showLegend: o.legend == null ? true : o.legend,
+    legendPos: o.legendPos || 'r',
+    valAxisHidden: true, catAxisHidden: true,
+  });
+  return { bottom:+(o.y+o.h).toFixed(3) };
+}
+/** 혼합 — 막대(왼쪽 축) + 선(오른쪽 축). 규모와 비율을 한 장에 겹칠 때 */
+function comboChart(s, o){
+  chartFrame(s, o, '혼합 차트');
+  const T = s._T, ramp = seriesRamp(s._C);
+  const bars  = (o.bars  || []).map((x,i) => ({ name:x.name, labels:o.cats, values:x.values }));
+  const lines = (o.lines || []).map((x,i) => ({ name:x.name, labels:o.cats, values:x.values }));
+  if (bars.length + lines.length > SERIES_MAX)
+    throw new Error(`혼합 차트 계열이 ${bars.length+lines.length}개 — ${SERIES_MAX}개까지만 쓴다`);
+  const common = chartOpts(s, o, bars.length + lines.length);
+  s.addChart([
+    { type:'bar',  data:bars,  options:{ barDir:'col', barGrouping:'clustered',
+        barGapWidthPct: o.gap == null ? 55 : o.gap,
+        chartColors: ramp.slice(0, bars.length), showValue:true,
+        dataLabelFontFace:FONT, dataLabelFontSize:T.cap, dataLabelColor:K.g1, dataLabelPosition:'outEnd' } },
+    { type:'line', data:lines, options:{ chartColors: ramp.slice(bars.length, bars.length+lines.length),
+        lineSize:2.25, lineDataSymbol:'circle', lineDataSymbolSize:6, secondaryValAxis:!!o.rightAxis,
+        secondaryCatAxis:!!o.rightAxis, showValue:false } },
+  ], { ...common, valAxes:undefined, catAxes:undefined,
+       valAxisHidden:false, valAxisMajorTickMark:'none',
+       ...(o.rightAxis ? { valAxes:[
+            { valAxisTitle:o.unit || '', showValAxisTitle:!!o.unit, valAxisLabelFontFace:FONT,
+              valAxisLabelFontSize:T.cap, valAxisLabelColor:K.g2, valAxisLineColor:K.g4, valGridLine:{style:'none'} },
+            { valAxisTitle:o.unit2 || '', showValAxisTitle:!!o.unit2, valAxisLabelFontFace:FONT,
+              valAxisLabelFontSize:T.cap, valAxisLabelColor:K.g2, valAxisLineColor:K.g4, valGridLine:{style:'none'} },
+          ], catAxes:[
+            { catAxisLabelFontFace:FONT, catAxisLabelFontSize:T.cap, catAxisLabelColor:K.g2, catAxisLineColor:K.g4 },
+            { catAxisHidden:true },
+          ] } : {}) });
+  return { bottom:+(o.y+o.h).toFixed(3) };
+}
+/** 차트 아래 단위·출처 한 줄 */
+const chartNote = (s, t, o) => footnote(s, t, { x:o.x, y:o.y, w:o.w });
+
 function chevrons(s, steps, o){
   const T=s._T, n=steps.length, step=(o.w)/n, chW=step+0.30, h=o.h||0.80;
   steps.forEach((st,i)=>{
@@ -649,4 +784,5 @@ function toc(deck, o){
 module.exports = { P, K, FONT, TEXT_MIN, W, H, M, CW, BB, TITLE_Y, TITLE_MAX, Z, zones, col, cx, cw, split, MODE,
   textW, lines, needH, PALETTE, imgSize, findLogo, createDeck, frame, head, sub, guard, box, txt,
   underline, hr, logoAt, sectionTitle, kpiRow, table, tableNative, bullets, chevrons, waterfall, tree, matrix,
-  gantt, layers, callout, panel, footnote, source, pill, cover, coverPlain, toc };
+  gantt, layers, callout, panel, footnote, source, pill, cover, coverPlain, toc,
+  barChart, lineChart, pieChart, comboChart, chartNote, seriesRamp, SERIES_MAX };
