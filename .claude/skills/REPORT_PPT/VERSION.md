@@ -3,7 +3,7 @@
 | 항목 | 값 |
 |---|---|
 | 배포일 | 2026-08-24 |
-| 커밋 | `HEAD` |
+| 커밋 | `4578db4` |
 | 저장소 | jeonter-hash/workinno · `claude/brandlogy-ppt-design-system-k6bl8m` |
 
 ## 이 버전에서 확정된 것
