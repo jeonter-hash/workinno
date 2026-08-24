@@ -14,6 +14,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent / ".claude" / "skills"
 SKILLS = ("PRESENT_PPT", "REPORT_PPT")
 SHARED = (
+    "references/diagrams.md",
     "assets/ksa_mono.js",
     "assets/photo_placeholder.png",
     "scripts/postprocess.py",

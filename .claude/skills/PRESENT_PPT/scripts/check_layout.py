@@ -19,6 +19,7 @@
   13  차트 구조 결함 — 미선언 <c:axId>, <c:dPt>/<c:dLbls> 순서 (PowerPoint 복구 대화상자 원인)
   14  각주 과다 · 결론 밴드 남용 — 잔글씨 3줄 이상, 결론 밴드가 본문 장표 60% 초과
   15  문안 — 이중 피동·번역투·공문 축약형 등 걷어낼 표현
+  16  표 편중 — 표가 본문 65%를 넘게 차지한 장표가 본문의 절반을 넘는가
 
 FAIL이 하나라도 있으면 종료 코드 1. 표지·디바이더·클로징은 --special 로 제외한다.
 """
@@ -66,6 +67,11 @@ PALETTE = {"111111", "3A3A3A", "6B6B6B", "9E9E9E", "C7C7C7", "E4E4E4",
            "F4F4F4", "FAFAFA", "FFFFFF", "000000", "333333"}
 ACCENT = {"1F3864", "4A6491", "C4303C", "F2E4E6", "E8A0A6"}   # --palette accent 에서만 허용
 TEXT_FLOOR = 0x9E          # 흰 배경 위 글자는 이보다 밝으면 안 된다
+CHART_URI = "drawingml/2006/chart"      # 차트 graphicFrame 을 알아보는 표식
+# 표가 본문 높이의 이 비율을 넘게 차지하고 차트도 없으면 '표만 있는 장표'로 본다.
+# 도형 개수로 세면 KPI 스트립·조직도처럼 흰 도형이 많은 장표를 잘못 잡는다.
+TABLE_DOMINANT = 0.65
+
 # 겹침을 볼 도형 — 체브론·화살표는 설명글을 덮기 쉬우므로 포함한다
 OVERLAP_PRST = ("rect", "roundRect", "chevron", "homePlate", "rightArrow", "downArrow", "pentagon")
 GHOST_LINE = re.compile(r'<a:ln w="12700"><a:solidFill><a:srgbClr val="333333"/>')
@@ -243,6 +249,7 @@ def logo_asset():
 def check(path, mode, special, strict, palette='mono'):
     fails, warns = [], []
     body_slides, callout_slides = [], []
+    table_only = []
     zone = ZONE[mode]
     body_top = zone["본문"]
     msg_bottom = zone["본문"] - 0.10        # 메시지 글자 하단과 본문 사이의 완충 구간
@@ -423,6 +430,13 @@ def check(path, mode, special, strict, palette='mono'):
                 if t.text and EMOJI.search(t.text):
                     fails.append(f"{tag} 이모지 사용: {t.text[:24]}")
 
+            # 16 표만 있는 장표 — 도식도 차트도 없이 표 하나만 놓인 장표
+            if not is_special:
+                tbl_h = sum(b.h for b in bs if b.kind == "표")
+                share = tbl_h / (BODY_BOTTOM - body_top)
+                if tbl_h and not raw.count(CHART_URI) and share > TABLE_DOMINANT:
+                    table_only.append(f"{n}({share:.0%})")
+
             # 14 각주 과다 — 단위·출처는 한 줄로 합치고, 각주는 오독 위험이 있을 때만
             if not is_special:
                 foot = small_gray_texts(tree)
@@ -466,6 +480,15 @@ def check(path, mode, special, strict, palette='mono'):
                 if d != -1 and any(p.start() > d for p in re.finditer(r"<c:dPt>", ser)):
                     fails.append(f"[{short}] <c:dPt>가 <c:dLbls> 뒤에 있다 (ISO 순서 위반) — postprocess.py 를 실행할 것")
                     break
+
+    # 16b 표 편중 — 표만 있는 장표가 절반을 넘으면 표현을 바꿀 신호다
+    if len(body_slides) >= 4 and len(table_only) > 0.5 * len(body_slides):
+        warns.append(f"[deck] 표가 본문의 {TABLE_DOMINANT:.0%}를 넘게 차지한 장표가 {len(body_slides)}장 중 "
+                     f"{len(table_only)}장 — references/diagrams.md 를 보고 도식·차트로 바꿀 것 "
+                     f"(해당: {', '.join(table_only)})")
+    elif table_only:
+        warns.append(f"[deck] 표가 본문 대부분을 차지한 장표: {', '.join(table_only)} — "
+                     f"도식·차트로 바꿀 여지가 있는지 볼 것")
 
     # 14b 결론 밴드 남용 — 장(章)의 마지막 장표에만 다는 것이 원칙
     if len(body_slides) >= 4 and len(callout_slides) > 0.6 * len(body_slides):
