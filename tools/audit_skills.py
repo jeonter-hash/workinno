@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """audit_skills.py — present-ppt·report-ppt의 문서가 코드와 어긋났는지 본다.
 
-    python3 tools/audit_skills.py
+    python3 tools/audit_skills.py [스킬_폴더]
+
+스킬 원본은 코워크에 있고, 이 기기에는 계정 동기화본
+`~/.claude/skills/synced/` 로 내려온다. 인자를 주지 않으면 그곳을 본다.
 
 이 저장소에서 스킬을 여러 번 고치는 동안, 코드를 바꾸고 문서를 안 고쳐
 **서로 반대되는 지시**가 들어간 적이 두 번 있었다. 파일 동일성만 보는
@@ -23,7 +26,17 @@ import pathlib
 import re
 import sys
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent / ".claude" / "skills"
+def _root() -> pathlib.Path:
+    """스킬 폴더를 찾는다 — 인자 > 계정 동기화본 > 이 저장소."""
+    if len(sys.argv) > 1:
+        return pathlib.Path(sys.argv[1]).expanduser().resolve()
+    synced = pathlib.Path.home() / ".claude" / "skills" / "synced"
+    if (synced / "present-ppt").is_dir():
+        return synced
+    return pathlib.Path(__file__).resolve().parent.parent / ".claude" / "skills"
+
+
+ROOT = _root()
 SKILLS = ("present-ppt", "report-ppt")
 DOCS = ("SKILL.md", "INSTALL.md", "VERSION.md",
         "references/components.md", "references/design-system.md",
