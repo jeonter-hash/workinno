@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""audit_skills.py — PRESENT_PPT·REPORT_PPT의 문서가 코드와 어긋났는지 본다.
+"""audit_skills.py — present-ppt·report-ppt의 문서가 코드와 어긋났는지 본다.
 
     python3 tools/audit_skills.py
 
@@ -24,7 +24,7 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent / ".claude" / "skills"
-SKILLS = ("PRESENT_PPT", "REPORT_PPT")
+SKILLS = ("present-ppt", "report-ppt")
 DOCS = ("SKILL.md", "INSTALL.md", "VERSION.md",
         "references/components.md", "references/design-system.md",
         "references/diagrams.md", "references/headline.md")
@@ -125,7 +125,7 @@ def check_rule_numbers():
 def check_coords():
     for sk in SKILLS:
         src = read(sk, "assets/ksa_mono.js")
-        mode = "present" if sk == "PRESENT_PPT" else "report"
+        mode = "present" if sk == "present-ppt" else "report"
         m = re.search(rf"\n  {mode}:\s*\{{(.*?)\}},\n", src, re.S)
         if not m:
             fails.append(f"[{sk}] MODE.{mode} 를 못 찾음")
